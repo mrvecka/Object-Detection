@@ -1,3 +1,4 @@
+from __future__ import print_function
 import tensorflow as tf
 import Network.object_detection_network as odn
 import config as cfg
@@ -29,19 +30,23 @@ class NetworkCreator():
         
         #create actual network
         net = odn.create_detection_network_layer('layer1', data, [3, 3], 3, 64, 1, 1, self.is_training)
-        
+        net = odn.normalize_input_data(net, self.is_training)
+
         net = odn.create_detection_network_layer('layer2', net, [3, 3], 64, 64, 2, 2, self.is_training)
+        net = odn.normalize_input_data(net, self.is_training)
         
         net = odn.create_detection_network_layer('layer3', net, [3,3], 64, 128, 1, 1, self.is_training)
-        
+        net = odn.normalize_input_data(net, self.is_training)
         net = odn.create_detection_network_layer('layer4', net, [3,3], 128, 128, 1, 1, self.is_training)
-        
+        net = odn.normalize_input_data(net, self.is_training)
         net = odn.create_detection_network_layer('layer5', net, [3,3], 128, 128, 3, 1, self.is_training)
-        
+        net = odn.normalize_input_data(net, self.is_training)
         net = odn.create_detection_network_layer('layer6', net, [3,3], 128, 128, 6, 1, self.is_training)
         
         # first output
-        net = odn.create_detection_network_layer('output1', net, [1, 1], 128, 8, 1, 1, self.is_training)
+        net = odn.normalize_input_data(net, self.is_training)
+        net = odn.create_detection_network_output_layer('output1', net, [1, 1], 128, 8, 1, 1, self.is_training)
+        # net = odn.normalize_input_data(net, self.is_training)
         
         # net = odn.create_detection_network_pool_layer(net, [2,2],'layer7')
         
@@ -77,25 +82,26 @@ class NetworkCreator():
         target = tf.py_func(self.create_target_response_map, [label, 2], [tf.float32])
         # assert target.shape != shaped_output.shape, "While computing loss of NN shape of ground truth must be same as shape of network result"
         target = tf.squeeze(tf.stack(target))
-        target.set_shape((self.channels,self.height,self.width))
+        target.set_shape((self.height,self.width,self.channels))
+        
         # number of neurons in each output layer
         N = self.width * self.height
         
         # count of positive pixels
         
-        N_p = tf.math.count_nonzero(image[0])
+        N_p = tf.math.count_nonzero(image[:,:, 0])
         # for i in range(self.height):
         #     for j in range(self.width):
         #         if shaped_output[0][i][j] != 0:
         #             N_p += 1
         
         second_error = 0
-        error = tf.reduce_sum(tf.square(tf.subtract(target[0], image[0])))
+        error = tf.reduce_sum(tf.square(tf.subtract(target[:,:, 0], image[:, :, 0])))
         for c in range(1, self.channels):
             second_error += tf.reduce_sum(
                 tf.multiply(self.weight_factor,
-                             tf.multiply(target[0],
-                                          tf.square(tf.subtract(target[c], image[c])))))
+                             tf.multiply(target[:, :, 0],
+                                          tf.square(tf.subtract(target[:,:, c], image[:, :, c])))))
         
         
         # error = 0
@@ -110,18 +116,27 @@ class NetworkCreator():
         #         for c in range(1, self.channels):
         #             second_error += self.weight_factor * target[0][i][j] * pow(target[c][i][j] - image[c][i][j],2)
                     
-                            
+        # tf.print(error)  
+        # tf.print(second_error)
+        # tf.print(N)
+        # tf.print(N_p)  
+        # print(error)  
+        # print(second_error)
+        # print(N)
+        # print(N_p)                 
         error = (1/(2*N))*error
         
         tmp = 1/ (2 * N_p * (self.channels -1))
         
         error += tf.cast(tmp, tf.float32) * second_error
         
+        
         return error
     
     def create_target_response_map(self, labels, r):
                 
-        maps = np.zeros((self.channels,self.orig_height,self.orig_width))
+        # maps => array of shape (channels, orig_height, orig_width) 
+        maps = cv2.split(np.zeros((self.orig_height,self.orig_width,self.channels)))
         # self.index = 0
         # result = tf.scan(self.scan_label_function, labels, initializer=0) 
         for i in range(len(labels)):            
@@ -157,9 +172,15 @@ class NetworkCreator():
             maps[6][int(center_y)][int(center_x)] = center_y - label[5]
             maps[7][int(center_y)][int(center_x)] = center_y - label[6]        
                
-        maps[0] = cv2.GaussianBlur(maps[0], (3, 3), 1)
+        cv2.GaussianBlur(maps[0], (3, 3), 1)
+        # opencv can resize max 4 channels at once so we will resize them separately
+        # opencv use as parameter shape for resize function (width,height) not vice versa
         output = [cv2.resize(item,(self.width,self.height),interpolation=cv2.INTER_AREA) for item in maps]
-        return np.asarray(output,dtype=np.float32)
+        
+        # output is still of shape (channels, orig_height, orig_width) 
+        # we have to merge arrays to one with shape (orig_height, orig_width,channels) because it has to be same as network output 
+        result = cv2.merge(output)
+        return np.asarray(result,dtype=np.float32)
             
     def get_size_of_bounding_box(self, labels):
         
@@ -181,8 +202,8 @@ class NetworkCreator():
         self.scale = 4
         self.fov = 9
         # self.NET.shape.dims[0].value this is batch size
-        self.width = self.NET.shape.dims[1].value
-        self.height = self.NET.shape.dims[2].value
+        self.width = self.NET.shape.dims[2].value
+        self.height = self.NET.shape.dims[1].value
         self.channels = self.NET.shape.dims[3].value
         self.weight_factor = 1.5
         
@@ -192,7 +213,7 @@ class NetworkCreator():
 
         
         for i in range(self.BatchSize):          
-            current_img = tf.reshape(self.NET[i], [self.channels, self.height, self.width])
+            current_img = self.NET[i]
             current_lbl = labels[i]
             img_error = self.scan_image_function(current_img, current_lbl)
             errors.append(img_error)
@@ -228,7 +249,10 @@ class NetworkCreator():
         optimizer = tf.train.AdamOptimizer(learning_rate=learn_rate,name="adam_optimalizer").minimize(loss)
         
         error_value = tf.reduce_mean(loss)
+        
         init = tf.global_variables_initializer()
+        saver = tf.train.Saver()
+
         with tf.Session() as session:
         # initialise the variables
 
@@ -249,6 +273,31 @@ class NetworkCreator():
                 test_acc = session.run(error_value, 
                                 feed_dict={image_placeholder: image_batch, labels_placeholder: labels_batch, is_training: False})
                 
-                print("Epoch:", (epoch + 1), "test error: {:.5f}".format(test_acc))
+                print("Epoch:", (epoch + 1), "test error: {:.5f}".format(test_acc*100))
+
+            path = saver.save(session, r"C:\Users\Lukas\Documents\Object detection\model\object_detection_model.ckpt")
+            
+            image_batch, labels_batch, object_count = loader.get_train_data(1)
+            
+            response_maps = session.run(self.NET, feed_dict={image_placeholder: image_batch, labels_placeholder: labels_batch, is_training: False})
+            result = cv2.split(np.squeeze(response_maps,axis=0))
+            path1 = r"C:\Users\Lukas\Documents\Object detection\result\response_map0.jpg"
+            cv2.imwrite(path1, result[0])
+            path1 = r"C:\Users\Lukas\Documents\Object detection\result\response_map1.jpg"
+            cv2.imwrite(path1, result[1])
+            path1 = r"C:\Users\Lukas\Documents\Object detection\result\response_map2.jpg"
+            cv2.imwrite(path1, result[2])
+            path1 = r"C:\Users\Lukas\Documents\Object detection\result\response_map3.jpg"
+            cv2.imwrite(path1, result[3])
+            path1 = r"C:\Users\Lukas\Documents\Object detection\result\response_map4.jpg"
+            cv2.imwrite(path1, result[4])
+            path1 = r"C:\Users\Lukas\Documents\Object detection\result\response_map5.jpg"
+            cv2.imwrite(path1, result[5])
+            path1 = r"C:\Users\Lukas\Documents\Object detection\result\response_map6.jpg"
+            cv2.imwrite(path1, result[6])
+            path1 = r"C:\Users\Lukas\Documents\Object detection\result\response_map7.jpg"
+            cv2.imwrite(path1, result[7])
+
+
 
     

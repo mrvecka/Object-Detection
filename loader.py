@@ -63,15 +63,17 @@ class Loader:
         assert self.image_path != '', 'Image path not set. Nothing to work with. Check config file.'
         assert self.label_path != '', 'Label path not set. Nothing to work with. Check config file.'
         assert self.calib_path != '', 'Calibration path not set. Nothing to work with. Check config file.'
-        print("Start loading training files")
-
+        print('Loading training files')
+        #printProgressBar(0, self.amount, prefix = 'Progress:', suffix = 'Complete', length = 50)        
         x = self.start_from
-        while x < self.amount + self.start_from:
+        was_none = False
+        while len(self.Data) < self.amount and was_none is False:
             # print('loading image',x)
             try:
                 image = self._load_image(self.image_path, x, self.colored, self.image_extension)
                 if image is None:
                     x+=1
+                    was_none = True
                     continue
             except Exception as e:
                 #raise Exception('FAILED LOAD IMAGE FILE','LOADER')
@@ -85,6 +87,7 @@ class Loader:
                 calib_matrix = self._load_calibration(self.calib_path, x)
                 if calib_matrix is None:
                     x+=1
+                    was_none = True
                     continue
             except Exception as e:
                 print('FAILED LOAD CALIB FILE',x)
@@ -97,6 +100,7 @@ class Loader:
                 labels = self._load_label(self.label_path, x)
                 if labels is None:
                     x+=1
+                    was_none = True
                     continue
             except Exception as e:
                 print('FAILED LOAD LABEL FILE',x)
@@ -115,6 +119,7 @@ class Loader:
 
             self.Data.append(data)
             x+=1
+            printProgressBar(len(self.Data), self.amount, prefix = 'Progress:', suffix = 'Complete', length = 50)
             
         print("Done loading", len(self.Data))
 
@@ -144,7 +149,7 @@ class Loader:
 
         cfg.IMG_ORIG_WIDTH = im.shape[1]
         cfg.IMG_ORIG_HEIGHT = im.shape[0]
-        return cv2.resize(im, (cfg.IMG_WIDTH,cfg.IMG_HEIGHT), interpolation=cv2.INTER_AREA)
+        return cv2.resize(im, (cfg.IMG_WIDTH,cfg.IMG_HEIGHT), interpolation=cv2.INTER_AREA) # opencv resize function takes as desired shape (width,height) !!!
 
     def _load_label(self, label_path, x):
         """
@@ -326,6 +331,27 @@ class Loader:
         out = np.full((mask.shape[0],mask.shape[1],7),insert_val,dtype=np.float32)
         out[mask] = np.concatenate(array)
         return out
+    
+def printProgressBar (iteration, total, prefix = '', suffix = '', decimals = 1, length = 100, fill = '█', printEnd = "\r"):
+    """
+    Call in a loop to create terminal progress bar
+    @params:
+        iteration   - Required  : current iteration (Int)
+        total       - Required  : total iterations (Int)
+        prefix      - Optional  : prefix string (Str)
+        suffix      - Optional  : suffix string (Str)
+        decimals    - Optional  : positive number of decimals in percent complete (Int)
+        length      - Optional  : character length of bar (Int)
+        fill        - Optional  : bar fill character (Str)
+        printEnd    - Optional  : end character (e.g. "\r", "\r\n") (Str)
+    """
+    percent = ("{0:." + str(decimals) + "f}").format(100 * (iteration / float(total)))
+    filledLength = int(length * iteration // total)
+    bar = fill * filledLength + '-' * (length - filledLength)
+    print('\r%s |%s| %s%% %s' % (prefix, bar, percent, suffix), end = printEnd)
+    # Print New Line on Complete
+    if iteration == total: 
+        print()
     
 if __name__ == '__main__':
     loader = Loader()
