@@ -1,9 +1,14 @@
 from __future__ import print_function
 import numpy as np
-# import tensorflow as tf
+import tensorflow as tf
+import tensorboard as tb
 # from Network.network_creator import NetworkCreator
 # import Models.bb3txt as bb
 import cv2
+import loader as load
+
+from tensorflow-gpu import version; print(version.VERSION)
+
 # import os
 # import sys
 # os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
@@ -17,11 +22,17 @@ import cv2
 # #              [0,0,0,0,0]])
 
 
-img = cv2.imread(r"C:\Users\Lukas\Documents\Object detection\result\response_map2.jpg",cv2.IMREAD_GRAYSCALE)
-img2 = img * 255
+# loader = load.Loader()
+# loader.load_data()
 
-cv2.imshow("multilied", img2)
-cv2.waitKey(0)
+# print(tf.VERSION)
+# print(tb.version.VERSION)
+
+# img = cv2.imread(r"C:\Users\Lukas\Documents\Object detection\result\response_map2.jpg",cv2.IMREAD_GRAYSCALE)
+# img2 = img * 255
+
+# cv2.imshow("multilied", img2)
+# cv2.waitKey(0)
 
 
 

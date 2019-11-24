@@ -29,6 +29,7 @@ def create_detection_network_layer(name, input_data, filter_kernel_shape, num_in
     return out_layer
 
 def create_detection_network_output_layer(name, input_data, filter_kernel_shape, num_input_channels, num_output_channels, dilation, stride, is_training):
+        
     # setup the filter input shape for tf.nn.conv_2d
     conv_filter_shape = [filter_kernel_shape[0], filter_kernel_shape[1], num_input_channels, num_output_channels]
 

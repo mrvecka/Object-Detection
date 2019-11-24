@@ -282,21 +282,21 @@ class NetworkCreator():
             response_maps = session.run(self.NET, feed_dict={image_placeholder: image_batch, labels_placeholder: labels_batch, is_training: False})
             result = cv2.split(np.squeeze(response_maps,axis=0))
             path1 = r"C:\Users\Lukas\Documents\Object detection\result\response_map0.jpg"
-            cv2.imwrite(path1, result[0])
+            cv2.imwrite(path1, 255 * result[0])
             path1 = r"C:\Users\Lukas\Documents\Object detection\result\response_map1.jpg"
-            cv2.imwrite(path1, result[1])
+            cv2.imwrite(path1, 255* result[1])
             path1 = r"C:\Users\Lukas\Documents\Object detection\result\response_map2.jpg"
-            cv2.imwrite(path1, result[2])
+            cv2.imwrite(path1, 255*result[2])
             path1 = r"C:\Users\Lukas\Documents\Object detection\result\response_map3.jpg"
-            cv2.imwrite(path1, result[3])
+            cv2.imwrite(path1, 255*result[3])
             path1 = r"C:\Users\Lukas\Documents\Object detection\result\response_map4.jpg"
-            cv2.imwrite(path1, result[4])
+            cv2.imwrite(path1, 255*result[4])
             path1 = r"C:\Users\Lukas\Documents\Object detection\result\response_map5.jpg"
-            cv2.imwrite(path1, result[5])
+            cv2.imwrite(path1, 255*result[5])
             path1 = r"C:\Users\Lukas\Documents\Object detection\result\response_map6.jpg"
-            cv2.imwrite(path1, result[6])
+            cv2.imwrite(path1, 255*result[6])
             path1 = r"C:\Users\Lukas\Documents\Object detection\result\response_map7.jpg"
-            cv2.imwrite(path1, result[7])
+            cv2.imwrite(path1, 255*result[7])
 
 
 

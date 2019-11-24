@@ -149,7 +149,9 @@ class Loader:
 
         cfg.IMG_ORIG_WIDTH = im.shape[1]
         cfg.IMG_ORIG_HEIGHT = im.shape[0]
-        return cv2.resize(im, (cfg.IMG_WIDTH,cfg.IMG_HEIGHT), interpolation=cv2.INTER_AREA) # opencv resize function takes as desired shape (width,height) !!!
+        resized = cv2.resize(im, (cfg.IMG_WIDTH,cfg.IMG_HEIGHT), interpolation=cv2.INTER_AREA) # opencv resize function takes as desired shape (width,height) !!!
+        normalized = (resized -128) / 128
+        return normalized
 
     def _load_label(self, label_path, x):
         """
