@@ -1,10 +1,15 @@
 import tensorflow as tf
 
 
-def normalize_input_data(data,is_training):
+def normalization_layer(data,is_training):
     # normalization
     out_layer = tf.layers.batch_normalization(data, training=is_training)
     
+    return out_layer
+
+def normalize_input_data(data,is_training):
+    mean, variance = tf.nn.moments(data, [1,2,3], keep_dims=True)
+    out_layer = tf.nn.batch_normalization(data, mean, variance, None, None, 0.001, "normalization")
     return out_layer
 
 def create_detection_network_layer(name, input_data, filter_kernel_shape, num_input_channels, num_output_channels, dilation, stride, is_training):
@@ -12,19 +17,19 @@ def create_detection_network_layer(name, input_data, filter_kernel_shape, num_in
     conv_filter_shape = [filter_kernel_shape[0], filter_kernel_shape[1], num_input_channels, num_output_channels]
 
     # initialize weights anddd bias for the filter
-    weights = tf.Variable(tf.truncated_normal(conv_filter_shape, stddev=0.1), name=name+'_W', trainable=True)
+    weights = tf.Variable(tf.truncated_normal(conv_filter_shape, stddev=0.1), name=name+'_weights', trainable=True)
 
     # bias = tf.Variable(tf.truncated_normal(([num_output_channels]), stddev=0.1), name=name+'_b', trainable=False)
-    bias = tf.constant(0.1,shape=[num_output_channels],name=name+'_b')
+    bias = tf.constant(0.1,shape=[num_output_channels],name=name+'_biases')
     
     # setup the convolutional layer network
-    out_layer = tf.nn.conv2d(input_data, weights, strides=[1, stride, stride, 1], padding='SAME', dilations=[1, dilation, dilation, 1])
+    out_layer = tf.nn.conv2d(input_data, weights, strides=[1, stride, stride, 1], padding='SAME', dilations=[1, dilation, dilation, 1], name=name+'_convolution')
 
     # add bias
-    out_layer = tf.add(out_layer, bias)
+    out_layer = tf.add(out_layer, bias, name=name+'_bias_add_op')
 
     # apply a relu non-linea activation
-    out_layer = tf.nn.relu(out_layer)
+    out_layer = tf.nn.relu(out_layer, name=name+'_relu_activation')
     
     return out_layer
 
@@ -34,16 +39,16 @@ def create_detection_network_output_layer(name, input_data, filter_kernel_shape,
     conv_filter_shape = [filter_kernel_shape[0], filter_kernel_shape[1], num_input_channels, num_output_channels]
 
     # initialize weights anddd bias for the filter
-    weights = tf.Variable(tf.truncated_normal(conv_filter_shape, stddev=0.1), name=name+'_W', trainable=True)
+    weights = tf.Variable(tf.truncated_normal(conv_filter_shape, stddev=0.1), name=name+'_weights', trainable=True)
 
     # bias = tf.Variable(tf.truncated_normal(([num_output_channels]), stddev=0.1), name=name+'_b', trainable=False)
-    bias = tf.constant(0.1,shape=[num_output_channels],name=name+'_b')
+    bias = tf.constant(0.1,shape=[num_output_channels],name=name+'_biases')
     
     # setup the convolutional layer network
-    out_layer = tf.nn.conv2d(input_data, weights, strides=[1, stride, stride, 1], padding='SAME', dilations=[1, dilation, dilation, 1])
+    out_layer = tf.nn.conv2d(input_data, weights, strides=[1, stride, stride, 1], padding='SAME', dilations=[1, dilation, dilation, 1], name=name+'_convolution')
 
     # add bias
-    out_layer = tf.add(out_layer, bias)
+    out_layer = tf.add(out_layer, bias, name=name+'_final')
     
     return out_layer
 

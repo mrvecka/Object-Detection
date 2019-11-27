@@ -8,7 +8,7 @@ class BB3Txt():
     def __init__(self):
         self.file_name: ''
         self.label: ''
-        self.coinfidence: 0
+        self.confidence: 0
         self.fbl_x: 0
         self.fbl_y: 0
         self.fbr_x: 0
@@ -18,14 +18,14 @@ class BB3Txt():
         self.ftl_y: 0
 
     def to_string(self):
-        data = self.file_name + ' ' + self.label + ' ' + str(self.coinfidence) + ' ' + str(self.fbl_x) + ' ' + str(self.fbl_y) + ' ' + str(self.fbr_x) + ' ' + str(self.fbr_y) + ' ' + str(self.rbl_x) + ' ' + str(self.rbl_y) + ' ' + str(self.ftl_y)
+        data = self.file_name + ' ' + self.label + ' ' + str(self.confidence) + ' ' + str(self.fbl_x) + ' ' + str(self.fbl_y) + ' ' + str(self.fbr_x) + ' ' + str(self.fbr_y) + ' ' + str(self.rbl_x) + ' ' + str(self.rbl_y) + ' ' + str(self.ftl_y)
         return data
 
 def create_bb3txt_object(label, file_name, P) -> BB3Txt:
     bb3 = BB3Txt()
     bb3.file_name = file_name
     bb3.label = label.label
-    bb3.coinfidence = 0
+    bb3.confidence = 0
     # rbl = np.asmatrix([[-label.dim_length/2],[0],[label.dim_width/2],[1]])
     # fbl = np.asmatrix([[label.dim_length/2],[0],[label.dim_width/2],[1]])
     # fbr = np.asmatrix([[label.dim_length/2],[0],[-label.dim_width/2],[1]])
@@ -45,7 +45,7 @@ def create_bb3txt_object(label, file_name, P) -> BB3Txt:
     # fbr_3x1 = fbr_3x1 / fbr_3x1[2,0]
     # ftl_3x1 = ftl_3x1 / ftl_3x1[2,0]
 
-    corners = get_points_matrix(P,rotation_4x4,label)
+    corners = geom.get_points_matrix(P,rotation_4x4,label)
 
     bb3.fbl_x = corners[0,0]
     bb3.fbl_y = corners[1,0]
@@ -59,21 +59,6 @@ def create_bb3txt_object(label, file_name, P) -> BB3Txt:
     bb3.ftl_y = corners[1,3]
 
     return bb3
-
-def get_points_matrix(P,R,label) -> [[]]:
-
-    #                       rbl                     fbl                 fbr                 ftl
-    corners = np.asmatrix([ [-label.dim_length/2,   label.dim_length/2, label.dim_length/2, label.dim_length/2],
-                            [0,                     0,                  0,                  -label.dim_height],
-                            [label.dim_width/2,     label.dim_width/2,  -label.dim_width/2, label.dim_width/2],
-                            [1,                     1,                  1,                  1]])
-
-    p_3x4 = P * R        
-    corners = p_3x4 * corners
-
-    corners = corners / corners[2]
-
-    return corners
 
 def write_bb3_to_file(bb3_labels) -> None:
 

@@ -1,5 +1,6 @@
 BASE_PATH = r'D:\Documents\KITTI'
 
+MODEL_PATH = r"C:\Users\Lukas\Documents\Object detection\model\my_net.ckpt"
 
 # optional: if not specified program look for base dir + \[images,calib,label] + \training + \[image,calib,label]
 IMAGE_PATH = r'D:\Documents\KITTI\images\training\image'
@@ -12,7 +13,7 @@ TRAINING_SPLIT = 70
 
 # amount of data from dataset which will be loaded
 START_FROM = 0
-DATA_AMOUNT = 200
+DATA_AMOUNT = 2000
 
 CONTINUOUS_LOADER = True
 
@@ -42,4 +43,5 @@ ITERATIONS = 100
 # NON-MAXIMA SUPPRESSION
 
 NMS_TRESHOLD = 200
+RESULT_TRESHOLD = 60
 

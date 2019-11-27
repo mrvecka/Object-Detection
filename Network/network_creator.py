@@ -26,17 +26,17 @@ class NetworkCreator():
         
     def create_detection_network(self, input_batch):
         
-        data = odn.normalize_input_data(input_batch, self.is_training)
+        # data = odn.normalize_input_data(input_batch, self.is_training)
         
         #create actual network
-        net = odn.create_detection_network_layer('layer1', data, [3, 3], 3, 64, 1, 1, self.is_training)
-        net = odn.normalize_input_data(net, self.is_training)
+        net = odn.create_detection_network_layer('layer1', input_batch, [3, 3], 3, 64, 1, 1, self.is_training)
+        # net = odn.normalize_input_data(net, self.is_training)
 
         net = odn.create_detection_network_layer('layer2', net, [3, 3], 64, 64, 2, 2, self.is_training)
-        net = odn.normalize_input_data(net, self.is_training)
+        # net = odn.normalize_input_data(net, self.is_training)
         
         net = odn.create_detection_network_layer('layer3', net, [3,3], 64, 128, 1, 1, self.is_training)
-        net = odn.normalize_input_data(net, self.is_training)
+        # net = odn.normalize_input_data(net, self.is_training)
         net = odn.create_detection_network_layer('layer4', net, [3,3], 128, 128, 1, 1, self.is_training)
         net = odn.normalize_input_data(net, self.is_training)
         net = odn.create_detection_network_layer('layer5', net, [3,3], 128, 128, 3, 1, self.is_training)
@@ -170,7 +170,7 @@ class NetworkCreator():
             maps[4][int(center_y)][int(center_x)] = center_y - label[3]
             maps[5][int(center_y)][int(center_x)] = center_x - label[4]
             maps[6][int(center_y)][int(center_x)] = center_y - label[5]
-            maps[7][int(center_y)][int(center_x)] = center_y - label[6]        
+            maps[7][int(center_y)][int(center_x)] = center_y - label[6]
                
         cv2.GaussianBlur(maps[0], (3, 3), 1)
         # opencv can resize max 4 channels at once so we will resize them separately
@@ -225,9 +225,9 @@ class NetworkCreator():
         # optimizer = tf.train.AdamOptimizer(learning_rate=0.001)
         # train = optimizer.minimize(loss)
         print(len(errors))
-        loss_output = tf.placeholder(dtype=tf.float32,shape=(self.BatchSize),name='loss_output')
+        loss_output = tf.placeholder(dtype=tf.float32,shape=(self.BatchSize),name='loss_output_placeholder')
         loss_constant = tf.constant(1.0,shape=[self.BatchSize],dtype=tf.float32,name='loss_constant')
-        loss_output = tf.multiply(errors,loss_constant)
+        loss_output = tf.multiply(errors,loss_constant, name='loss_output_multiply')
         return loss_output
 
     def start_training(self, loader):
@@ -237,11 +237,12 @@ class NetworkCreator():
         iterations = cfg.ITERATIONS
         learn_rate = cfg.LEARNING_RATE
         
-        image_placeholder = tf.placeholder(tf.float32, [None, cfg.IMG_HEIGHT, cfg.IMG_WIDTH, cfg.IMG_CHANNELS],name="image_placeholder")
-        labels_placeholder = tf.placeholder(tf.float32, [None, None, 7], name="label_placeholder")
-        is_training = tf.placeholder(tf.bool)
+        image_placeholder = tf.placeholder(tf.float32, [None, cfg.IMG_HEIGHT, cfg.IMG_WIDTH, cfg.IMG_CHANNELS],name="input_image_placeholder")
+        labels_placeholder = tf.placeholder(tf.float32, [None, None, 7], name="input_label_placeholder")
+        is_training = tf.placeholder(tf.bool, name='input_is_training_placeholder')
         
         self.create_detection_network(image_placeholder)
+        
         # as y there should by last network layer
         # loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=self.NET,logits=labels_placeholder))
         
@@ -250,8 +251,8 @@ class NetworkCreator():
         
         error_value = tf.reduce_mean(loss)
         
+        saver = tf.train.Saver(name='model_saver')
         init = tf.global_variables_initializer()
-        saver = tf.train.Saver()
 
         with tf.Session() as session:
         # initialise the variables
@@ -259,25 +260,25 @@ class NetworkCreator():
             session.run(init)
         
             # after model is fully trained
-            # path = saver.save(session, r"C:\Users\Lukas\Documents\Python Projects\Tensorflow-Projects\Image_Clasification\graphs\my_net.ckpt")
-            writer = tf.summary.FileWriter(graph_path, session.graph)
+            # writer = tf.summary.FileWriter(graph_path, session.graph)
 
             for epoch in range(epochs):
                 avg_cost = 0
                 for i in range(iterations):
-                    image_batch, labels_batch, object_count = loader.get_train_data(self.BatchSize)
+                    image_batch, labels_batch, object_count, _ = loader.get_train_data(self.BatchSize)
                     session.run(optimizer, 
                                     feed_dict={image_placeholder: image_batch, labels_placeholder: labels_batch, is_training: True})
 
-                image_batch, labels_batch, object_count = loader.get_train_data(self.BatchSize)
+                image_batch, labels_batch, object_count, _ = loader.get_train_data(self.BatchSize)
                 test_acc = session.run(error_value, 
                                 feed_dict={image_placeholder: image_batch, labels_placeholder: labels_batch, is_training: False})
                 
                 print("Epoch:", (epoch + 1), "test error: {:.5f}".format(test_acc*100))
 
-            path = saver.save(session, r"C:\Users\Lukas\Documents\Object detection\model\object_detection_model.ckpt")
+            saver.save(session, cfg.MODEL_PATH)
             
-            image_batch, labels_batch, object_count = loader.get_train_data(1)
+            # call test 
+            image_batch, labels_batch, object_count, image_paths = loader.get_train_data(1)
             
             response_maps = session.run(self.NET, feed_dict={image_placeholder: image_batch, labels_placeholder: labels_batch, is_training: False})
             result = cv2.split(np.squeeze(response_maps,axis=0))
@@ -297,6 +298,8 @@ class NetworkCreator():
             cv2.imwrite(path1, 255*result[6])
             path1 = r"C:\Users\Lukas\Documents\Object detection\result\response_map7.jpg"
             cv2.imwrite(path1, 255*result[7])
+            
+            print(image_paths[0])
 
 
 

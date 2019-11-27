@@ -70,7 +70,7 @@ class Loader:
         while len(self.Data) < self.amount and was_none is False:
             # print('loading image',x)
             try:
-                image = self._load_image(self.image_path, x, self.colored, self.image_extension)
+                image, full_image_path = self._load_image(self.image_path, x, self.colored, self.image_extension)
                 if image is None:
                     x+=1
                     was_none = True
@@ -84,7 +84,8 @@ class Loader:
 
             # print('loading calib',x)
             try:
-                calib_matrix = self._load_calibration(self.calib_path, x)
+                self.calib_path = self.calib_path + r'\\' + str(x).zfill(6)+'.txt'
+                calib_matrix = self.load_calibration(self.calib_path)
                 if calib_matrix is None:
                     x+=1
                     was_none = True
@@ -114,6 +115,7 @@ class Loader:
             
             data = DataModel()
             data.image = image
+            data.image_path = full_image_path
             data.labels = labels
             data.calib_matrix = calib_matrix
 
@@ -151,7 +153,7 @@ class Loader:
         cfg.IMG_ORIG_HEIGHT = im.shape[0]
         resized = cv2.resize(im, (cfg.IMG_WIDTH,cfg.IMG_HEIGHT), interpolation=cv2.INTER_AREA) # opencv resize function takes as desired shape (width,height) !!!
         normalized = (resized -128) / 128
-        return normalized
+        return normalized, image_path
 
     def _load_label(self, label_path, x):
         """
@@ -181,7 +183,7 @@ class Loader:
                 # if not exists try add 
                 return self.load_one_label(x)
                 
-    def _load_calibration(self, calib_path, x):
+    def load_calibration(self, calib_path):
         """
         Reads a camera matrix P (3x4) stored in the row-major scheme.
 
@@ -191,7 +193,7 @@ class Loader:
         Returns:
             camera matrix P 4x4
         """
-        calib_path = calib_path + r'\\' + str(x).zfill(6)+'.txt'
+        
         if not fw.check_file_exists(calib_path):
             return None
 
@@ -249,7 +251,8 @@ class Loader:
     def load_one_label(self,x):
         # print('loading calib',x)
         try:
-            calib_matrix = self._load_calibration(self.calib_path, x)
+            calib_path = calib_path + r'\\' + str(x).zfill(6)+'.txt'
+            calib_matrix = self.load_calibration(calib_path)
             if calib_matrix is None:
                 x+=1
                 return None
@@ -305,6 +308,7 @@ class Loader:
         result_image = []
         result_label = []
         result_object_count = []
+        result_images_paths = []
         for x in range(batch_size):
             result_image.append(data[x].image)
             labels = self.labels_array_for_training(data[x].labels)
@@ -313,11 +317,12 @@ class Loader:
             # if tmp.dtype.name != 'float32' and tmp.dtype.name != 'float64':
             #     print(x)
             result_object_count.append(len(labels))
+            result_images_paths.append(data[x].image_path)
             
             
 
         result_label = self.complete_uneven_arrays(result_label)
-        return np.asarray(result_image), np.asarray(result_label), np.asarray(result_object_count)
+        return np.asarray(result_image), np.asarray(result_label), np.asarray(result_object_count), np.asarray(result_images_paths)
     
     def labels_array_for_training(self,labels):
         label_array = []
