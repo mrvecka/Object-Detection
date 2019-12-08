@@ -2,31 +2,34 @@ import cv2
 
 def draw_bounding_boxes(image_model):
     
-    img = cv2.imread(image_model.filename, cv2.IMREAD_COLOR)
+    img = cv2.imread(image_model.file_name, cv2.IMREAD_COLOR)
+    height = img.shape[0]
+    width = img.shape[1]
+    resized= img
     
     for i in range(len(image_model.boxes)):
         box = image_model.boxes[i]
         
         # front
-        cv2.line(img, box.fbl, box.fbr, (0,0,255), 2) 
-        cv2.line(img, box.fbr, box.ftr, (0,0,255), 2) 
-        cv2.line(img, box.ftr, box.ftl, (0,0,255), 2) 
-        cv2.line(img, box.ftl, box.fbl, (0,0,255), 2)
+        cv2.line(resized, box.fbl, box.fbr, (0,0,255), 2) 
+        cv2.line(resized, box.fbr, box.ftr, (0,0,255), 2) 
+        cv2.line(resized, box.ftr, box.ftl, (0,0,255), 2) 
+        cv2.line(resized, box.ftl, box.fbl, (0,0,255), 2)
          
         # rear
-        cv2.line(img, box.rbl, box.rbr, (255,0,0), 2) 
-        cv2.line(img, box.rbr, box.rtr, (255,0,0), 2) 
-        cv2.line(img, box.rtr, box.rtl, (255,0,0), 2) 
-        cv2.line(img, box.rtl, box.rbl, (255,0,0), 2) 
+        cv2.line(resized, box.rbl, box.rbr, (255,0,0), 2) 
+        cv2.line(resized, box.rbr, box.rtr, (255,0,0), 2) 
+        cv2.line(resized, box.rtr, box.rtl, (255,0,0), 2) 
+        cv2.line(resized, box.rtl, box.rbl, (255,0,0), 2) 
         
         # connections
-        cv2.line(img, box.fbl, box.rbl, (51,51,51), 2)
-        cv2.line(img, box.fbr, box.rbr, (51,51,51), 2)
-        cv2.line(img, box.ftl, box.rtl, (51,51,51), 2)
-        cv2.line(img, box.ftr, box.rtr, (51,51,51), 2)
+        cv2.line(resized, box.fbl, box.rbl, (51,51,51), 2)
+        cv2.line(resized, box.fbr, box.rbr, (51,51,51), 2)
+        cv2.line(resized, box.ftl, box.rtl, (51,51,51), 2)
+        cv2.line(resized, box.ftr, box.rtr, (51,51,51), 2)
         
-    
-    cv2.imshow("result without NMS", img)
+    resized_back = cv2.resize(resized, (width,height))
+    cv2.imshow("result without NMS", resized)
     cv2.waitKey(0)
         
         

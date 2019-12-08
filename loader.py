@@ -21,42 +21,37 @@ class Loader:
         self.init()
 
     def init(self):
-        if cfg.IMAGE_PATH != '':
+        
+        if fw.check_dir_exists(cfg.IMAGE_PATH):
             self.image_path = cfg.IMAGE_PATH
         else:
-            self.image_path = cfg.BASE_PATH + r'\images\training\image'
-
-        if cfg.LABEL_PATH != '':
+            print("Image path '"+ cfg.IMAGE_PATH +"' not found!!!")
+            
+        if fw.check_dir_exists(cfg.LABEL_PATH):
             self.label_path = cfg.LABEL_PATH
         else:
-            self.label_path = cfg.BASE_PATH + r'\label\training\label'
-
-        if cfg.CALIB_PATH != '':
+            print("Label path '"+ cfg.LABEL_PATH +"' not found!!!")  
+            
+        if fw.check_dir_exists(cfg.CALIB_PATH):
             self.calib_path = cfg.CALIB_PATH
         else:
-            self.calib_path = cfg.BASE_PATH + r'\calib\training\calib'
-
+            print("Calibration path '"+ cfg.CALIB_PATH +"' not found!!!")
+            
         self.amount = cfg.DATA_AMOUNT
-        self.start_from = cfg.START_FROM
         self.image_extension = cfg.IMAGE_EXTENSION
         if cfg.IMG_CHANNELS == 1:
             self.colored = False
         else:
             self.colored = True           
-            
-
+          
+    def clear(self):
+        self.Data = []
+          
     def load_data(self):
         """
         Load data from files on specified path.
         Image file name is formated to be "000000" with specified extension
-
-        Input:
-            image_path: Path to the images folder
-            label_path: Path to the label folder. Load labels from txt files with specific structure according to KITTI documentation
-            calib_path: Path to the foder with calibrations files. Load calibration for P2 - left colored images
-            amount: Amount of loaded data. For testing purpose.
-            extension: Extension of image file.
-            colored: Indicate that images are loaded either colored or grayscale
+        
         Returns:
             Data are stored to properties
         """
@@ -64,68 +59,66 @@ class Loader:
         assert self.label_path != '', 'Label path not set. Nothing to work with. Check config file.'
         assert self.calib_path != '', 'Calibration path not set. Nothing to work with. Check config file.'
         print('Loading training files')
-        #printProgressBar(0, self.amount, prefix = 'Progress:', suffix = 'Complete', length = 50)        
-        x = self.start_from
-        was_none = False
-        while len(self.Data) < self.amount and was_none is False:
-            # print('loading image',x)
-            try:
-                image, full_image_path = self._load_image(self.image_path, x, self.colored, self.image_extension)
-                if image is None:
-                    x+=1
-                    was_none = True
-                    continue
-            except Exception as e:
-                #raise Exception('FAILED LOAD IMAGE FILE','LOADER')
-                print('FAILED LOAD IMAGE FILE',x)
-                print(e.args)
-                x+=1
+        
+        image_pathss = []
+        label_paths = []
+        calib_paths = []
+        
+        # in img_files are absolut paths
+        img_files = fw.get_all_files(self.image_path, self.image_extension)
+        if self.amount == -1:
+            amount_to_load = len(img_files)
+        else:
+            amount_to_load = self.amount
+        
+        for i in range(len(img_files)):
+            file_ = img_files[i]
+            dot_index = file_.find('.')
+            file_name = file_[:dot_index]
+            
+            image_path = self.image_path + '\\' + file_
+            label_path = self.label_path + '\\' + file_name + '.txt'
+            if not fw.check_file_exists(label_path):
                 continue
-
-            # print('loading calib',x)
-            try:
-                self.calib_path = self.calib_path + r'\\' + str(x).zfill(6)+'.txt'
-                calib_matrix = self.load_calibration(self.calib_path)
-                if calib_matrix is None:
-                    x+=1
-                    was_none = True
-                    continue
-            except Exception as e:
-                print('FAILED LOAD CALIB FILE',x)
-                print(e.args)
-                x+=1
+                    
+            calib_path = self.calib_path + '\\' + file_name + '.txt'
+            if not fw.check_file_exists(calib_path):
                 continue
-
-            # print('loading label',x)
-            try:
-                labels = self._load_label(self.label_path, x)
-                if labels is None:
-                    x+=1
-                    was_none = True
-                    continue
-            except Exception as e:
-                print('FAILED LOAD LABEL FILE',x)
-                print(e.args)
-                x+=1
+            
+            image, width, height = self._load_image(image_path)
+            if image is None:
                 continue
-
+                
+            # calibration
+            calib_matrix = self.load_calibration(calib_path)
+            if calib_matrix is None:
+                continue
+            
+            # label
+            labels = self._load_label(label_path, file_name, calib_matrix, width, height)
+            if labels is None:
+                continue
+            
             if len(labels) == 0:
-                x+=1
                 continue
             
             data = DataModel()
             data.image = image
-            data.image_path = full_image_path
+            data.image_path = image_path
             data.labels = labels
             data.calib_matrix = calib_matrix
 
             self.Data.append(data)
-            x+=1
-            printProgressBar(len(self.Data), self.amount, prefix = 'Progress:', suffix = 'Complete', length = 50)
+            if len(self.Data) == amount_to_load:
+                break
             
-        print("Done loading", len(self.Data))
+            printProgressBar(len(self.Data), amount_to_load, prefix = 'Progress:', suffix = 'Complete', length = 50)
+            
+        printProgressBar(amount_to_load, amount_to_load, prefix = 'Progress:', suffix = 'Complete', length = 50)
+        print("Loaded: ",len(self.Data)," training files")
 
-    def _load_image(self, image_path, x, colored, extension):
+
+    def _load_image(self, image_path):
         """
         Reads a image with number x and based on parameter colored result will have 1 or 3 chanels
 
@@ -135,13 +128,7 @@ class Loader:
         Returns:
             image as matrix
         """
-        image_path = image_path + r'\\' + str(x).zfill(6)+'.'+extension
-
-        if not fw.check_file_exists(image_path):
-            return None
-
-        #print(image_path)
-        if colored:
+        if self.colored:
             im = cv2.imread(image_path, cv2.IMREAD_COLOR)
         else:
             im = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
@@ -149,13 +136,11 @@ class Loader:
         if im.any() == None:
             return None
 
-        cfg.IMG_ORIG_WIDTH = im.shape[1]
-        cfg.IMG_ORIG_HEIGHT = im.shape[0]
         resized = cv2.resize(im, (cfg.IMG_WIDTH,cfg.IMG_HEIGHT), interpolation=cv2.INTER_AREA) # opencv resize function takes as desired shape (width,height) !!!
         normalized = (resized -128) / 128
-        return normalized, image_path
+        return normalized, im.shape[1], im.shape[0]
 
-    def _load_label(self, label_path, x):
+    def _load_label(self, label_path, file_name, calib_matrix, width, height):
         """
         Reads a label file to specific image.
         Read only Car labels
@@ -166,22 +151,22 @@ class Loader:
         Returns:
             LabelModel object
         """
-        label_path = label_path + r'\\' + str(x).zfill(6)+'.txt'
-        if not fw.check_file_exists(label_path):
-            return None
 
         # check if bb3_files folder exists
         # if exists then load from this file they are pre processed to 33btxt format and ready to use
         # if not load kitti label and create bb3txt file, next time this file will be used
-        bb3_path = cfg.BASE_PATH + r'\\' + cfg.BB3_FOLDER
+        bb3_path = cfg.BB3_FOLDER
         if fw.check_dir_exists(bb3_path):
-            bb3_file_path = bb3_path + '\\' + str(x).zfill(6)+'.txt'
+            bb3_file_path = bb3_path + '\\'+file_name+'.txt'
             if fw.check_file_exists(bb3_file_path):
                 result = self._load_from_bb3_folder(bb3_file_path)
                 return result
             else:
                 # if not exists try add 
-                return self.load_one_label(x)
+                return self.load_one_label(label_path, file_name, calib_matrix, width, height)
+        else:
+            # if not exists try add 
+            return self.load_one_label(label_path, file_name, calib_matrix, width, height)
                 
     def load_calibration(self, calib_path):
         """
@@ -193,9 +178,6 @@ class Loader:
         Returns:
             camera matrix P 4x4
         """
-        
-        if not fw.check_file_exists(calib_path):
-            return None
 
         with open(calib_path, 'r') as infile_calib:
             for line in infile_calib:
@@ -233,41 +215,30 @@ class Loader:
                 label.rbl_x = float(data[7])
                 label.rbl_y = float(data[8])
                 label.ftl_y = float(data[9])
-
+                label.bb_center_x = float(data[10])
+                label.bb_center_y = float(data[11])
+                
+                label.largest_dim = float(data[12])
+                
                 labels.append(label)
 
         return labels
     
     def convert_labels_to_bb3(self):
-        print('converting labels to bb3txt format')
-        x = 0
-        while x < self.amount:            
-            labels = self.load_one_label(x)
-            if labels != None and len(labels) != 0:
-                bb.write_bb3_to_file(labels)
+        pass
+        # print('converting labels to bb3txt format')
+        # x = 0
+        # while x < self.amount:            
+        #     labels = self.load_one_label(x)
+        #     if labels != None and len(labels) != 0:
+        #         bb.write_bb3_to_file(labels)
                 
-            x+=1
+        #     x+=1
      
-    def load_one_label(self,x):
-        # print('loading calib',x)
-        try:
-            calib_path = calib_path + r'\\' + str(x).zfill(6)+'.txt'
-            calib_matrix = self.load_calibration(calib_path)
-            if calib_matrix is None:
-                x+=1
-                return None
-        except Exception as e:
-            print('FAILED LOAD CALIB FILE',x)
-            print(e.args)
-            x+=1
-            return None
-
-        label_path_local = self.label_path + r'\\' + str(x).zfill(6)+'.txt'
-        if not fw.check_file_exists(label_path_local):
-            return None
+    def load_one_label(self, label_path, file_name, calib_matrix, width, height):
 
         labels = []
-        with open(label_path_local, 'r') as infile_label:
+        with open(label_path, 'r') as infile_label:
 
             for line in infile_label:
                 line = line.rstrip('\n')
@@ -297,10 +268,43 @@ class Loader:
                 label.location_z = float(data[13])
                 label.rotation = float(data[14])
 
-                bb3_label = bb.create_bb3txt_object(label, str(x).zfill(6)+'.txt', calib_matrix)
+                bb3_label = bb.create_bb3txt_object(label, file_name, calib_matrix, width, height)
                 labels.append(bb3_label)
-                
-        return labels
+                              
+        if len(labels) == 0:
+            return None
+        else:
+            bb.write_bb3_to_file(labels)
+            return labels
+            
+    def load_specific_label(self, file_name):
+        
+        image_path = cfg.IMAGE_PATH + '\\' + file_name + '.png'
+        label_path = cfg.LABEL_PATH + '\\' + file_name + '.txt'
+        calib_path = cfg.CALIB_PATH + '\\' + file_name + '.txt'
+        
+        if not fw.check_file_exists(image_path):
+            assert "Path for image not found"
+        
+        if not fw.check_file_exists(label_path):
+            assert "Path for label not found"
+                    
+        if not fw.check_file_exists(calib_path):
+            assert "Path for calib matrix not found"
+        
+        image, width, height = self._load_image(image_path)
+        calib_matrix = self.load_calibration(calib_path)
+        labels = self.load_one_label(label_path, file_name, calib_matrix, width, height)
+        
+        
+        data = DataModel()
+        data.image = image
+        data.image_path = image_path
+        data.labels = labels
+        data.calib_matrix = calib_matrix
+
+        self.Data.append(data)
+           
            
     def get_train_data(self, batch_size):
         
@@ -313,29 +317,39 @@ class Loader:
             result_image.append(data[x].image)
             labels = self.labels_array_for_training(data[x].labels)
             result_label.append(labels)
-            # tmp = np.asarray(result_label)
-            # if tmp.dtype.name != 'float32' and tmp.dtype.name != 'float64':
-            #     print(x)
-            result_object_count.append(len(labels))
-            result_images_paths.append(data[x].image_path)
             
-            
-
         result_label = self.complete_uneven_arrays(result_label)
-        return np.asarray(result_image), np.asarray(result_label), np.asarray(result_object_count), np.asarray(result_images_paths)
+        return np.asarray(result_image), np.asarray(result_label)
+    
+    def get_test_data(self, batch_size):
+        
+        data = random.sample(self.Data, batch_size)
+        result_image = []
+        result_label = []
+        result_images_paths = []
+        result_calib_matrices = []
+        for x in range(batch_size):
+            result_image.append(data[x].image)
+            labels = self.labels_array_for_training(data[x].labels)
+            result_label.append(labels)
+            result_images_paths.append(data[x].image_path)
+            result_calib_matrices.append(data[x].calib_matrix)
+            
+        result_label = self.complete_uneven_arrays(result_label)
+        return np.asarray(result_image), np.asarray(result_label), np.asarray(result_images_paths), np.asarray(result_calib_matrices)
     
     def labels_array_for_training(self,labels):
         label_array = []
         for i in range(len(labels)):
             label = labels[i]
-            label_array.append([float(label.fbl_x), float(label.fbl_y), float(label.fbr_x), float(label.fbr_y), float(label.rbl_x), float(label.rbl_y), float(label.ftl_y)])
+            label_array.append([float(label.fbl_x), float(label.fbl_y), float(label.fbr_x), float(label.fbr_y), float(label.rbl_x), float(label.rbl_y), float(label.ftl_y), float(label.bb_center_x), float(label.bb_center_y), float(label.largest_dim)])
         
         return label_array
     
     def complete_uneven_arrays(self, array, insert_val = -1.0):
         lens = np.array([len(item) for item in array])
         mask = lens[:,None] > np.arange(lens.max())
-        out = np.full((mask.shape[0],mask.shape[1],7),insert_val,dtype=np.float32)
+        out = np.full((mask.shape[0],mask.shape[1],10),insert_val,dtype=np.float32)
         out[mask] = np.concatenate(array)
         return out
     
@@ -364,7 +378,7 @@ if __name__ == '__main__':
     loader = Loader()
     loader.load_data()
     
-    ba, bs, bd = loader.get_train_data(64)
-    print(ba)
+    # ba, bs, bd = loader.get_train_data(64)
+    # print(ba)
     
                  

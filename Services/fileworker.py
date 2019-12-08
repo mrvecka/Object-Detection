@@ -1,4 +1,5 @@
 import os
+import glob
 
 def check_dir_exists(path):
     return os.path.exists(path)
@@ -28,3 +29,7 @@ def delete_file(path):
     else:
         print ("Creating file %s " % path)
         return True
+    
+def get_all_files(path, extension):
+    files = [os.path.relpath(f,path) for f in glob.glob(path + "*/*."+extension)]
+    return files

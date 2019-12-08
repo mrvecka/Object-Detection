@@ -16,12 +16,17 @@ class BB3Txt():
         self.rbl_x: 0
         self.rbl_y: 0
         self.ftl_y: 0
+        
+        self.bb_center_x = 0
+        self.bb_center_y = 0
+        
+        self.largest_dim = 0
 
     def to_string(self):
-        data = self.file_name + ' ' + self.label + ' ' + str(self.confidence) + ' ' + str(self.fbl_x) + ' ' + str(self.fbl_y) + ' ' + str(self.fbr_x) + ' ' + str(self.fbr_y) + ' ' + str(self.rbl_x) + ' ' + str(self.rbl_y) + ' ' + str(self.ftl_y)
+        data = self.file_name + ' ' + self.label + ' ' + str(self.confidence) + ' ' + str(self.fbl_x) + ' ' + str(self.fbl_y) + ' ' + str(self.fbr_x) + ' ' + str(self.fbr_y) + ' ' + str(self.rbl_x) + ' ' + str(self.rbl_y) + ' ' + str(self.ftl_y) + ' ' + str(self.bb_center_x) + ' ' + str(self.bb_center_y) + ' ' + str(self.largest_dim)
         return data
 
-def create_bb3txt_object(label, file_name, P) -> BB3Txt:
+def create_bb3txt_object(label, file_name, P, width, height) -> BB3Txt:
     bb3 = BB3Txt()
     bb3.file_name = file_name
     bb3.label = label.label
@@ -57,16 +62,26 @@ def create_bb3txt_object(label, file_name, P) -> BB3Txt:
     bb3.rbl_y = corners[1,2]
 
     bb3.ftl_y = corners[1,3]
-
+    bb3.bb_center_x = label.x_top_left + (label.x_bottom_right - label.x_top_left) /2
+    bb3.bb_center_y = label.y_top_left + (label.y_bottom_right - label.y_top_left) /2
+    
+    # scale center of object to CNN input image size
+    scale_width_factor = (cfg.IMG_WIDTH * 100) / width
+    bb3.bb_center_x = bb3.bb_center_x * (scale_width_factor / 100)
+    scale_height_factor = (cfg.IMG_HEIGHT * 100) / height
+    bb3.bb_center_y = bb3.bb_center_y * (scale_height_factor / 100)
+    
+    bb3.largest_dim = np.max([label.x_bottom_right - label.x_top_left, label.y_bottom_right - label.y_top_left])
+    
     return bb3
 
 def write_bb3_to_file(bb3_labels) -> None:
 
-    bb3_path =cfg.BASE_PATH + r'\\'+ cfg.BB3_FOLDER
+    bb3_path = cfg.BB3_FOLDER
     if not fwb.check_dir_exists(bb3_path):
         if not fwb.create_dir(bb3_path):
             return
-    file_path =bb3_path + r'\\' + bb3_labels[0].file_name
+    file_path =bb3_path + r'\\' + bb3_labels[0].file_name + '.txt'
     if fwb.check_file_exists(file_path):
         fwb.delete_file(file_path)
         

@@ -26,35 +26,33 @@ def get_points_matrix(P,R,label) -> [[]]:
 
     return corners
 
-def image_to_world_space(data, path, normal, d):
-    loader = load.Loader()
-    matrix = loader.load_calibration(path)
+def image_to_world_space(data, calib_matrix, normal, d):
     
-    P_3 = matrix[0:2,0:2]
-    P_1 = matrix[:,3]
+    normal = np.reshape(normal,(1,3))
+    P_3 = calib_matrix[0:3,0:3]
+    P_1 = np.reshape(calib_matrix[:,3],(3,1))
     
     inverse_P_3 = np.linalg.inv(P_3) 
     
-    eye = (-1 * inverse_P_3) * P_1
+    eye = np.matmul((-1 * inverse_P_3),P_1)
+    # eye should be 3x1
     
-    normal_eye = normal * eye
-    inverse_P_3_y = inverse_P_3 * data
+    normal_eye = np.matmul(normal, eye)
+    inverse_P_3_y = np.matmul(inverse_P_3, data)
     
-    normal_inverse_P_3_y = normal * inverse_P_3_y
-    _lambda = -(normal_eye + d) / normal_inverse_P_3_y
+    normal_inverse_P_3_y = np.matmul(normal, inverse_P_3_y)
+    _lambda = -(normal_eye[0,0] + d) / normal_inverse_P_3_y[0,0]
     
-    x = eye + inverse_P_3_y * _lambda
+    x = eye + _lambda * inverse_P_3_y
     
     return x
 
-def world_space_to_image(data, path):
-    loader = load.Loader()
-    matrix = loader.load_calibration(path)
+def world_space_to_image(data, calib_matrix):
     
-    points = matrix * data
+    points = np.matmul(calib_matrix, data)
     points = points / points[2]
     
-    return points[0:1,:]
+    return points[0:2,:]
 
 def get_points_distance(p1, p2):  
     squere_sum = pow(p1[0] - p2[0],2) + pow(p1[1] - p2[1],2) + pow(p1[2] - p2[2],2)
