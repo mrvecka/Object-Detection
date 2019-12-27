@@ -5,7 +5,7 @@ import tensorboard as tb
 # from Network.network_creator import NetworkCreator
 # import Models.bb3txt as bb
 import cv2
-import loader as load
+import Services.loader as load
 
 def GetObjectBounds(r, cr, bo, scale):
     ideal_size = (2 * r + 1) / cr * scale
@@ -45,46 +45,48 @@ def create_target_response_map(labels, r, circle_ratio, boundaries, scale, heigh
                 
                 cv2.circle(maps[0], (int(x), int(y)), int(r), 255, -1)
                 
-                x_acc = x * scaling_ratio
-                y_acc = y * scaling_ratio
+                # x_acc = x * scaling_ratio
+                # y_acc = y * scaling_ratio
                 for c in range(1,7):
-                    cv2.circle(maps[c], (int(x_acc), int(y_acc)), int(r), 1, -1)
+                    cv2.circle(maps[c], (int(x), int(y)), int(r), 1, -1)
                     cv2.GaussianBlur(maps[c], (3, 3), 100)
                     
-                    for i in range(-r,r,1):
+                    for l in range(-r,r,1):
                         for j in range(-r,r,1):
-                            xp = int(x_acc) + j
-                            yp = int(y_acc) + i
+                            xp = int(x) + j
+                            yp = int(y) + l
                             
                             if xp >= 0 and xp < width and yp >= 0 and yp < height:
                                 if maps[c][yp][xp] > 0.0:
                                     if c ==1 or c == 3 or c == 5:
                                         maps[c][yp][xp] = 0.5 + (label[c-1] - x - j * scale) / ideal
                                     elif c == 2 or c == 4 or c == 6 or c == 7:
-                                        maps[c][yp][xp] = 0.5 + (label[c-1] - y - i * scale) / ideal
+                                        maps[c][yp][xp] = 0.5 + (label[c-1] - y - l * scale) / ideal
 
         result = cv2.merge(maps)
         
         return np.asarray(result,dtype=np.float32)
 
 loader = load.Loader()
-loader.load_specific_label("001067")
+loader.load_specific_label("000046")
 
 image_batch, labels_batch, image_paths, calib_matrices = loader.get_test_data(1)
 
 maps2 = create_target_response_map(labels_batch[0], 2, 0.3, 0.33, 2,64,128)
-maps4 = create_target_response_map(labels_batch[0], 2, 0.3, 0.33, 4, 32,64)
-maps8 = create_target_response_map(labels_batch[0], 2, 0.3, 0.33, 8, 16,32)
-maps16 = create_target_response_map(labels_batch[0], 2, 0.3, 0.33, 16, 8,16)
+# maps4 = create_target_response_map(labels_batch[0], 2, 0.3, 0.33, 4, 32,64)
+# maps8 = create_target_response_map(labels_batch[0], 2, 0.3, 0.33, 8, 16,32)
+# maps16 = create_target_response_map(labels_batch[0], 2, 0.3, 0.33, 16, 8,16)
 
 first2 = maps2[:,:,0]
-first4 = maps4[:,:,0]
-first8 = maps8[:,:,0]
-first16 = maps16[:,:,0]
+second2 = maps2[:,:,1]
+# first4 = maps4[:,:,0]
+# first8 = maps8[:,:,0]
+# first16 = maps16[:,:,0]
 cv2.imshow("response_2", first2)
-cv2.imshow("response_4", first4)
-cv2.imshow("response_8", first8)
-cv2.imshow("response_16", first16)
+cv2.imshow("response_2 second",second2)
+# cv2.imshow("response_4", first4)
+# cv2.imshow("response_8", first8)
+# cv2.imshow("response_16", first16)
 cv2.waitKey(0)
             
 

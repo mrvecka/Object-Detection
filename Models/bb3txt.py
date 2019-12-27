@@ -52,16 +52,17 @@ def create_bb3txt_object(label, file_name, P, width, height) -> BB3Txt:
 
     corners = geom.get_points_matrix(P,rotation_4x4,label)
 
-    bb3.fbl_x = corners[0,0]
-    bb3.fbl_y = corners[1,0]
+    bb3.rbl_x = corners[0,0]
+    bb3.rbl_y = corners[1,0]
 
-    bb3.fbr_x = corners[0,1]
-    bb3.fbr_y = corners[1,1]
+    bb3.fbl_x = corners[0,1]
+    bb3.fbl_y = corners[1,1]
 
-    bb3.rbl_x = corners[0,2]
-    bb3.rbl_y = corners[1,2]
+    bb3.fbr_x = corners[0,2]
+    bb3.fbr_y = corners[1,2]
 
     bb3.ftl_y = corners[1,3]
+    
     bb3.bb_center_x = label.x_top_left + (label.x_bottom_right - label.x_top_left) /2
     bb3.bb_center_y = label.y_top_left + (label.y_bottom_right - label.y_top_left) /2
     

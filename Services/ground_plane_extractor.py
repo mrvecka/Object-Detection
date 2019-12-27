@@ -11,11 +11,7 @@ class GroundPlaneExtractor():
 
         self.iterations = cfg.RANSAC_ITERATIONS
         self.gp_4_xn = [[]]
-        if cfg.LABEL_PATH != '':
-            self.label_path = cfg.LABEL_PATH
-        else:
-            self.label_path = cfg.BASE_PATH + r'\label\training\label'
-            
+        self.label_path = cfg.LABEL_PATH            
         self.data_amount = cfg.DATA_AMOUNT
         self.ground_points = []
         
@@ -96,7 +92,7 @@ class GroundPlaneExtractor():
         while x < self.data_amount:
             print('loading file',x)
             local_label_path = self.label_path + r'\\' + str(x).zfill(6)+'.txt'
-            if not fw.check_file(local_label_path):
+            if not fw.check_file_exists(local_label_path):
                 return None
 
             labels = []

@@ -46,9 +46,6 @@ def create_detection_network_output_layer(name, input_data, filter_kernel_shape,
     
     # setup the convolutional layer network
     out_layer = tf.nn.conv2d(input_data, weights, strides=[1, stride, stride, 1], padding='SAME', dilations=[1, dilation, dilation, 1], name=name+'_convolution')
-
-    # add bias
-    # out_layer = tf.add(out_layer, bias, name=name+'_final')
     
     return out_layer
 

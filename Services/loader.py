@@ -6,6 +6,7 @@ from Models.dataModel import DataModel
 import config as cfg
 import Models.bb3txt as bb
 import Services.fileworker as fw
+import Services.helper as h
 
 class Loader:
     def __init__(self):
@@ -102,9 +103,12 @@ class Loader:
             if len(labels) == 0:
                 continue
             
+            
+            
             data = DataModel()
             data.image = image
             data.image_path = image_path
+            data.image_name = file_
             data.labels = labels
             data.calib_matrix = calib_matrix
 
@@ -114,6 +118,7 @@ class Loader:
             
             printProgressBar(len(self.Data), amount_to_load, prefix = 'Progress:', suffix = 'Complete', length = 50)
             
+        # self.create_pgp_file()
         printProgressBar(amount_to_load, amount_to_load, prefix = 'Progress:', suffix = 'Complete', length = 50)
         print("Loaded: ",len(self.Data)," training files")
 
@@ -137,7 +142,7 @@ class Loader:
             return None
 
         resized = cv2.resize(im, (cfg.IMG_WIDTH,cfg.IMG_HEIGHT), interpolation=cv2.INTER_AREA) # opencv resize function takes as desired shape (width,height) !!!
-        normalized = (resized -128) / 128
+        normalized = h.normalize(resized)
         return normalized, im.shape[1], im.shape[0]
 
     def _load_label(self, label_path, file_name, calib_matrix, width, height):
@@ -353,6 +358,23 @@ class Loader:
         out[mask] = np.concatenate(array)
         return out
     
+    def create_pgp_file(self):
+        if not fw.check_dir_exists(cfg.PGP_FOLDER):
+            fw.create_dir(cfg.PGP_FOLDER)
+            
+        if fw.check_file_exists(cfg.PGP_FOLDER + r'\pgps_info.txt'):
+            fw.delete_file(cfg.PGP_FOLDER + r'\pgps_info.txt')
+        
+        f= open(cfg.PGP_FOLDER + r'\pgps_info.txt',"w+")
+
+        for i in range(len(self.Data)):
+            label = self.Data[i]
+            text = label.image_name + ' ' + str(label.calib_matrix[0,0])+ ' ' +  str(label.calib_matrix[0,1])+ ' ' +  str(label.calib_matrix[0,2])+ ' ' +  str(label.calib_matrix[0,3])+ ' ' +  str(label.calib_matrix[1,0])+ ' ' +  str(label.calib_matrix[1,1])+ ' ' +  str(label.calib_matrix[1,2])+ ' ' +  str(label.calib_matrix[1,3])+ ' ' +  str(label.calib_matrix[2,0])+ ' ' +  str(label.calib_matrix[2,1])+ ' ' +  str(label.calib_matrix[2,2])+ ' ' +  str(label.calib_matrix[2,3]) + ' ' +  str(0) + ' ' +  str(1) + ' ' +  str(0) + ' ' +  str(0)
+            f.write(text + '\n')
+
+        f.close()
+                
+    
 def printProgressBar (iteration, total, prefix = '', suffix = '', decimals = 1, length = 100, fill = '█', printEnd = "\r"):
     """
     Call in a loop to create terminal progress bar
@@ -373,6 +395,8 @@ def printProgressBar (iteration, total, prefix = '', suffix = '', decimals = 1, 
     # Print New Line on Complete
     if iteration == total: 
         print()
+        
+
     
 if __name__ == '__main__':
     loader = Loader()

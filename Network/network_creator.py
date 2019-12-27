@@ -11,26 +11,21 @@ class NetworkCreator():
     def __init__(self,):
         self.device = cfg.DEVICE_NAME
         self.is_training = cfg.IS_TRAINING
-        self.NET = None
         self.BatchSize = cfg.BATCH_SIZE
-        self.weight_factor = 2.0
+        self.weight_factor = cfg.WEIGHT_FACTOR
         
-        self.loss_prob_center = []
-        self.loss_fblx_values = []
-        self.loss_fbly_values = []
-        self.loss_fbrx_values = []
-        self.loss_fbry_values = []
-        self.loss_rblx_values = []
-        self.loss_rbly_values = []
-        self.loss_ftly_values = []
+        self.net_s_2 = None
+        self.net_s_4 = None
+        self.net_s_8 = None
+        self.net_s_16 = None
         
         
-    def create_detection_network(self, input_batch):
+    def create_detection_network(self, input):
         
         # data = odn.normalize_input_data(input_batch, self.is_training)
         
         #create actual network
-        net = odn.create_detection_network_layer('layer1', input_batch, [3, 3], 3, 64, 1, 1, self.is_training)
+        net = odn.create_detection_network_layer('layer1', input, [3, 3], 3, 64, 1, 1, self.is_training)
         net = odn.normalization_layer(net, self.is_training)
 
         net = odn.create_detection_network_layer('layer2', net, [3, 3], 64, 64, 2, 2, self.is_training)
@@ -48,9 +43,9 @@ class NetworkCreator():
         net = odn.normalization_layer(net, self.is_training)
         self.net_s_2 = odn.create_detection_network_output_layer('output2', net, [1, 1], 128, 8, 1, 1, self.is_training)
                 
-        net = odn.create_detection_network_pool_layer(self.net_s_2, [2,2],'layer7')
+        net = odn.create_detection_network_pool_layer(net, [2,2],'layer7')
         
-        net = odn.create_detection_network_layer('layer8', net, [3,3], 8, 256, 1, 1, self.is_training)
+        net = odn.create_detection_network_layer('layer8', net, [3,3], 128, 256, 1, 1, self.is_training)
         net = odn.normalization_layer(net, self.is_training)
         net = odn.create_detection_network_layer('layer9', net, [3,3], 256, 256, 1, 1, self.is_training)
         net = odn.normalization_layer(net, self.is_training)
@@ -60,9 +55,9 @@ class NetworkCreator():
         self.net_s_4 = odn.create_detection_network_output_layer('output4', net, [1, 1], 256, 8, 1, 1, self.is_training)
 
         
-        net = odn.create_detection_network_pool_layer(self.net_s_4, [2,2], 'layer11')
+        net = odn.create_detection_network_pool_layer(net, [2,2], 'layer11')
         
-        net = odn.create_detection_network_layer('layer12', net, [3,3], 8, 512, 1, 1, self.is_training)
+        net = odn.create_detection_network_layer('layer12', net, [3,3], 256, 512, 1, 1, self.is_training)
         net = odn.normalization_layer(net, self.is_training)
 
         net = odn.create_detection_network_layer('layer13', net, [3,3], 512, 512, 1, 1, self.is_training)
@@ -74,9 +69,9 @@ class NetworkCreator():
         self.net_s_8 = odn.create_detection_network_output_layer('output8', net, [1, 1], 512, 8, 1, 1, self.is_training)
 
 
-        net = odn.create_detection_network_pool_layer(self.net_s_8, [2,2], 'layer15')
+        net = odn.create_detection_network_pool_layer(net, [2,2], 'layer15')
 
-        net = odn.create_detection_network_layer('layer16', net, [3,3], 8, 512, 1, 1, self.is_training)
+        net = odn.create_detection_network_layer('layer16', net, [3,3],512, 512, 1, 1, self.is_training)
         net = odn.normalization_layer(net, self.is_training)
 
         net = odn.create_detection_network_layer('layer17', net, [3,3], 512, 512, 1, 1, self.is_training)
@@ -181,23 +176,23 @@ class NetworkCreator():
                 
                 cv2.circle(maps[0], (int(x), int(y)), int(r), 255, -1)
                 
-                x_acc = x * scaling_ratio
-                y_acc = y * scaling_ratio
+                # x_acc = x * scaling_ratio
+                # y_acc = y * scaling_ratio
                 for c in range(1,7):
-                    cv2.circle(maps[c], (int(x_acc), int(y_acc)), int(r), 1, -1)
+                    cv2.circle(maps[c], (int(x), int(y)), int(r), 1, -1)
                     cv2.GaussianBlur(maps[c], (3, 3), 100)
                     
-                    for i in range(-r,r,1):
+                    for l in range(-r,r,1):
                         for j in range(-r,r,1):
-                            xp = int(x_acc) + j
-                            yp = int(y_acc) + i
+                            xp = int(x) + j
+                            yp = int(y) + l
                             
                             if xp >= 0 and xp < width and yp >= 0 and yp < height:
                                 if maps[c][yp][xp] > 0.0:
                                     if c ==1 or c == 3 or c == 5:
                                         maps[c][yp][xp] = 0.5 + (label[c-1] - x - j * scale) / ideal
                                     elif c == 2 or c == 4 or c == 6 or c == 7:
-                                        maps[c][yp][xp] = 0.5 + (label[c-1] - y - i * scale) / ideal
+                                        maps[c][yp][xp] = 0.5 + (label[c-1] - y - l * scale) / ideal
 
         result = cv2.merge(maps)
         
@@ -228,12 +223,10 @@ class NetworkCreator():
         loss_output = tf.multiply(errors,loss_constant, name='loss_output_multiply')
         return tf.reduce_sum(loss_output)
 
-    def start_training(self, loader):
+    def train(self, loader):
             
         graph_path = os.path.dirname(os.path.abspath(__file__)) + r"\graphs\tensorboard"
-        epochs = cfg.EPOCHS
         iterations = cfg.ITERATIONS
-        learn_rate = cfg.LEARNING_RATE
         
         image_placeholder = tf.placeholder(tf.float32, [None, cfg.IMG_HEIGHT, cfg.IMG_WIDTH, cfg.IMG_CHANNELS],name="input_image_placeholder")
         labels_placeholder = tf.placeholder(tf.float32, [None, None, 10], name="input_label_placeholder")
@@ -249,7 +242,7 @@ class NetworkCreator():
         loss_s_8 = self.network_loss_function(self.net_s_8, labels_placeholder, 2, 0.3, 0.33, 8)
         loss_s_16 = self.network_loss_function(self.net_s_16, labels_placeholder, 2, 0.3, 0.33, 16)
         errors = tf.convert_to_tensor([loss_s_2, loss_s_4, loss_s_8, loss_s_16], dtype=tf.float32)
-        optimizer = tf.train.AdamOptimizer(learning_rate=learn_rate,name="adam_optimalizer").minimize(errors)
+        optimizer = tf.train.AdamOptimizer(name="adam_optimalizer").minimize(errors)
         
         error_value = tf.reduce_mean(errors)
         
@@ -263,11 +256,11 @@ class NetworkCreator():
         
             # after model is fully trained
             # writer = tf.summary.FileWriter(graph_path, session.graph)
-
-            for epoch in range(epochs):
-                avg_cost = 0
+            test_acc = 1
+            epoch = 1
+            while test_acc > cfg.MAX_ERROR:
                 for i in range(iterations):
-                    image_batch, labels_batch = loader.get_train_data(self.BatchSize)
+                    image_batch, labels_batch = loader.get_train_data(self.BatchSize)                    
                     session.run(optimizer, 
                                     feed_dict={image_placeholder: image_batch, labels_placeholder: labels_batch, is_training: True})
 
@@ -275,24 +268,11 @@ class NetworkCreator():
                 test_acc = session.run(error_value, 
                                 feed_dict={image_placeholder: image_batch, labels_placeholder: labels_batch, is_training: False})
                 
-                print("Epoch:", (epoch + 1), "test error: {:.5f}".format(test_acc))
-
+                print("Epoch:", (epoch), "test error: {:.5f}".format(test_acc))
+                epoch += 1
+                
             saver.save(session, cfg.MODEL_PATH)
-            
-            # loader.clear()
-            # #loader.load_data()
-            # loader.load_specific_label("000046")
-                    
-            # # call test 
-            # image_batch, labels_batch, image_paths, calib_matrices = loader.get_test_data(1)
                         
-            # response_maps_2, response_maps_4, response_maps_8, response_maps_16 = session.run([self.net_s_2,self.net_s_4, self.net_s_8, self.net_s_16],
-            #                                                                                   feed_dict={image_placeholder: image_batch, is_training: False})
-            
-            # self.save_results(response_maps_2,2)            
-            # self.save_results(response_maps_4,4)            
-            # self.save_results(response_maps_8,8)         
-            # self.save_results(response_maps_16,16)            
             
     def save_results(self, maps, scale):
         result = cv2.split(np.squeeze(maps,axis=0))

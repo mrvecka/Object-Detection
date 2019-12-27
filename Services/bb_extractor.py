@@ -5,19 +5,27 @@ import cv2
 
 import Services.geometry as geom
 
-def extract_bounding_box(result, label, calib_matrix):
+def extract_bounding_box(result, label, calib_matrix, img_path, scale, ideal):
     
     maps = cv2.split(np.squeeze(result,axis=0))
+    # calib_matrix, gp = get_info_from_pgp(img_path)
+    # if calib_matrix in None:
+    #     return None
+    # rotation_matrix = geom.get_rotation_matrix(-1.54)
+    # calib_matrix = np.matmul(calib_matrix, rotation_matrix)
+    
     image = np.asmatrix(maps[0])
     im_max = image.max()
+    thresh_value = (im_max * cfg.RESULT_TRESHOLD) / 100 
+    maps = threshold_result(maps, thresh_value)
+    maps = denormalize_to_true_value(maps, scale, ideal)
     
-    tresh_value = (im_max * cfg.RESULT_TRESHOLD) / 100 
     image_model = ResultBoxModel()
     for y in range(image.shape[0]):
         
         for x in range(image.shape[1]):
             # pixels
-            if image[y,x] >= tresh_value:
+            if maps[0][y,x] > 0:
 
                 fbl_x = maps[1][y,x]
                 fbl_y = maps[2][y,x]
@@ -27,36 +35,34 @@ def extract_bounding_box(result, label, calib_matrix):
                 rbl_y = maps[6][y,x]
                 ftl_y = maps[7][y,x]
 
-                data = [[fbl_x, fbr_x, rbl_x],
-                        [fbl_y, fbr_y, rbl_y],
-                        [1, 1, 1]]
-                
-                world_space = geom.image_to_world_space(data, calib_matrix, [0,1,0], 0)
-                w_fbl = world_space[:,0]
-                w_fbr = world_space[:,1]
-                w_rbl = world_space[:,2]
-                
+                data = np.asarray([[fbl_x, fbr_x, rbl_x],
+                [fbl_y, fbr_y, rbl_y],
+                [1, 1, 1]])
+                # calib_matrix = np.matmul(calib_matrix,rotation_matrix) 
+                # world_space = image_to_world_space(image_space_homo[:,0], calib_matrix, [0,1,0], 0)
+                w_rbl = geom.image_to_world_space(data[:,2], calib_matrix, [0,1,0], 0)
+                w_fbl = geom.image_to_world_space(data[:,0], calib_matrix, [0,1,0], 0)
+                w_fbr = geom.image_to_world_space(data[:,1], calib_matrix, [0,1,0], 0)
                 w_rbr = w_fbr + (w_rbl - w_fbl)
-                
-                front_normal = w_fbl - w_rbl
-                front_d = np.dot(front_normal, w_fbl)
-                w_ftl = geom.image_to_world_space(np.reshape([fbl_x,ftl_y,1],(3,1)), calib_matrix, [0,1,0], front_d)
-                bottom_to_top = np.subtract(w_ftl, np.reshape(w_fbl,(3,1)))
-
+                front_normal = w_rbl - w_fbl
+                front_normal = np.reshape(front_normal, (1,3))
+                front_d = -np.dot(front_normal, w_fbl)
+                w_ftl = geom.image_to_world_space(np.reshape([data[0,0],ftl_y,1],(3,1)), calib_matrix, front_normal, front_d[0,0])
+                bottom_to_top = w_ftl - np.reshape(w_fbl,(3,1))
 
                 # now we have reconstructed bottom rectangle but it is paralelogram
-                
+
                 # center of parallelogram
                 mass_center = (w_fbl + w_rbr) / 2.0
                 # half diagonals
                 d1 = w_fbl - mass_center
                 length_d1 = np.linalg.norm(d1)
-                
+
                 d2 = w_fbr - mass_center
                 length_d2 = np.linalg.norm(d2)
-                
+
                 delta = abs(length_d1 - length_d2) / 2.0
-                
+
                 d1_new = []
                 d2_new = []
                 if length_d1 > length_d2:
@@ -66,27 +72,26 @@ def extract_bounding_box(result, label, calib_matrix):
                 else:
                     d1_new = d1 * (1 + delta / length_d1)
                     d2_new = d2 * (1 - delta / length_d2)
-                
+
                 w_fbl = np.reshape(mass_center + d1_new, (3,1))
                 w_fbr = np.reshape(mass_center + d2_new, (3,1))
                 w_rbl = np.reshape(mass_center - d2_new, (3,1))
                 w_rbr = np.reshape(mass_center - d1_new, (3,1))
-                
+
                 w_ftl = np.reshape(w_fbl, (3,1)) + bottom_to_top
                 w_ftr = np.reshape(w_fbr, (3,1)) + bottom_to_top
                 w_rtl = np.reshape(w_rbl, (3,1)) + bottom_to_top
                 w_rtr = np.reshape(w_rbr, (3,1)) + bottom_to_top
-                
-                
+
+
                 data = np.asarray([w_fbl, w_fbr, w_rbl, w_rbr, w_ftl, w_ftr, w_rtl, w_rtr])
                 transposed = np.squeeze(data.transpose())
-                
+
                 data = np.ones((4,8))
                 data[0:3,0:8] = transposed
                 points = geom.world_space_to_image(data, calib_matrix)
-                
+
                 box = BoxModel()
-                box.confidence = (image[y,x] * 100) / im_max
                 box.fbl = (int(points[0,0]), int(points[1,0]))
                 box.fbr = (int(points[0,1]), int(points[1,1]))
                 box.rbl = (int(points[0,2]), int(points[1,2]))
@@ -95,15 +100,94 @@ def extract_bounding_box(result, label, calib_matrix):
                 box.ftr = (int(points[0,5]), int(points[1,5]))
                 box.rtl = (int(points[0,6]), int(points[1,6]))
                 box.rtr = (int(points[0,7]), int(points[1,7]))
-                
+
                 image_model.boxes.append(box)
                 
     return image_model
                 
+def threshold_result(maps, threshold):
+    
+    for y in range(len(maps[0])):
+        for x in range(len(maps[0][y])):
+            if maps[0][y,x] < threshold:
+                maps[0][y,x] = 0
+                maps[1][y,x] = 0
+                maps[2][y,x] = 0
+                maps[3][y,x] = 0
+                maps[4][y,x] = 0
+                maps[5][y,x] = 0
+                maps[6][y,x] = 0
+                maps[7][y,x] = 0
                 
+    return maps
 
+def denormalize_to_true_value(maps, scale, ideal):
+
+    for y in range(len(maps[0])):
+        for x in range(len(maps[0][y])):
+            if maps[0][y,x] > 0:
+                y_max,x_max = find_local_max_coordinates(maps[0], y,x, scale)
+                # maps[c][yp][xp] = 0.5 + (label[c-1] - x - j * scale) / ideal
+                maps[1][y,x] = (maps[1][y,x] - 0.5) * ideal + x * scale + x_max
+                maps[3][y,x] = (maps[3][y,x] - 0.5) * ideal + x * scale + x_max
+                maps[5][y,x] = (maps[5][y,x] - 0.5) * ideal + x * scale + x_max
                 
-            
+                # maps[c][yp][xp] = 0.5 + (label[c-1] - y - i * scale) / ideal                
+                maps[2][y,x] = (maps[2][y,x] - 0.5) * ideal + y * scale + y_max
+                maps[4][y,x] = (maps[4][y,x] - 0.5) * ideal + y * scale + y_max
+                maps[6][y,x] = (maps[6][y,x] - 0.5) * ideal + y * scale + y_max
+                maps[7][y,x] = (maps[7][y,x] - 0.5) * ideal + y * scale + y_max
+                    
+    return maps
+                
+def find_local_max_coordinates(prob_map, y, x, scale):
     
+    height = len(prob_map)
+    width = len(prob_map[0])
+    y_max = y
+    x_max = x
+    max_val = prob_map[y,x]
+
+    size = 8
+    if scale == 2:
+        size = 16
+    if scale == 4:
+        size = 8
+    if scale == 8:
+        size = 4
+    if scale == 16:
+        size = 3
+
+
+    # left up
+    for _y in range(y-size,y + size,1):
+        for _x in range(x -size,x + size ,1):
+            if _x > 0 and _y > 0 and _x < width and _y < height:
+                if prob_map[_y,_x] > max_val:
+                    y_max = _y
+                    x_max = _x
+                    max_val = prob_map[_y,_x]
+                    
+                
+    return y_max, x_max
+
+def get_info_from_pgp(file_path):
+    slash_index = file_path.rindex('\\')
+    dot_index = file_path.rindex('.')
+    name = file_path[slash_index:dot_index]
+    with open(cfg.PGP_FOLDER + r'\pgps_info.txt', 'r') as infile_label:
+        for line in infile_label:
+            line = line.rstrip(r'\n')
+            data = line.split(' ')
+            if data == name:
+                P = np.asmatrix([[float(data[1]), float(data[2]),  float(data[3]),  float(data[4])],
+                    [float(data[5]), float(data[6]),  float(data[7]),  float(data[8])],
+                    [float(data[9]), float(data[10]), float(data[11]), float(data[12])]])
+                
+                gp = np.asmatrix([float(data[13]),float(data[14]),float(data[15]),float(data[16])])
+                
+                return p, gp
+                
+    return None, None
     
-    
+                

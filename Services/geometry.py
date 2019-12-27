@@ -1,5 +1,4 @@
 import numpy as np
-import loader as load
 
 def rotation_4x4(rotation,x,y,z):
     
@@ -28,8 +27,9 @@ def get_points_matrix(P,R,label) -> [[]]:
 
 def image_to_world_space(data, calib_matrix, normal, d):
     
+    data = np.reshape(data, (3,1))
     normal = np.reshape(normal,(1,3))
-    P_3 = calib_matrix[0:3,0:3]
+    P_3 = np.reshape(calib_matrix[0:3,0:3],(3,3))
     P_1 = np.reshape(calib_matrix[:,3],(3,1))
     
     inverse_P_3 = np.linalg.inv(P_3) 
@@ -58,3 +58,15 @@ def get_points_distance(p1, p2):
     squere_sum = pow(p1[0] - p2[0],2) + pow(p1[1] - p2[1],2) + pow(p1[2] - p2[2],2)
     result = np.sqrt(squere_sum)
     return result
+
+def get_rotation_matrix(rotation):
+    matrix = [[ np.cos(rotation),   0, np.sin(rotation),    2.87],
+              [ 0,                1.0, 0,                   1.61],
+              [-np.sin(rotation),   0, np.cos(rotation),    7.64],
+              [0,                   0, 0,                   1]]
+    
+    return np.asmatrix(matrix)
+    # matrix = [[ np.cos(rotation),   0, np.sin(rotation),    -3.59],
+    #         [ 0,                1.0, 0,                   1.69],
+    #         [-np.sin(rotation),   0, np.cos(rotation),    12.01],
+    #         [0,                   0, 0,                   1]]
