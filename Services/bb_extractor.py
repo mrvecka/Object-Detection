@@ -17,7 +17,7 @@ def extract_bounding_box(result, label, calib_matrix, img_path, scale, ideal):
     image = np.asmatrix(maps[0])
     im_max = image.max()
     thresh_value = (im_max * cfg.RESULT_TRESHOLD) / 100 
-    maps = threshold_result(maps, thresh_value)
+    image = threshold_result(image, thresh_value)
     maps = denormalize_to_true_value(maps, scale, ideal)
     
     image_model = ResultBoxModel()
@@ -107,36 +107,37 @@ def extract_bounding_box(result, label, calib_matrix, img_path, scale, ideal):
                 
 def threshold_result(maps, threshold):
     
-    for y in range(len(maps[0])):
-        for x in range(len(maps[0][y])):
-            if maps[0][y,x] < threshold:
-                maps[0][y,x] = 0
-                maps[1][y,x] = 0
-                maps[2][y,x] = 0
-                maps[3][y,x] = 0
-                maps[4][y,x] = 0
-                maps[5][y,x] = 0
-                maps[6][y,x] = 0
-                maps[7][y,x] = 0
+    for y in range(len(maps)):
+        for x in range(len(maps[0])):
+            if maps[y,x] < threshold:
+                maps[y,x] = 0
+                maps[y,x] = 0
+                maps[y,x] = 0
+                maps[y,x] = 0
+                maps[y,x] = 0
+                maps[y,x] = 0
+                maps[y,x] = 0
+                maps[y,x] = 0
                 
     return maps
 
-def denormalize_to_true_value(maps, scale, ideal):
+def denormalize_to_true_value(result, maps, scale, ideal):
 
     for y in range(len(maps[0])):
-        for x in range(len(maps[0][y])):
+        for x in range(len(maps[0,y])):
             if maps[0][y,x] > 0:
                 y_max,x_max = find_local_max_coordinates(maps[0], y,x, scale)
                 # maps[c][yp][xp] = 0.5 + (label[c-1] - x - j * scale) / ideal
-                maps[1][y,x] = (maps[1][y,x] - 0.5) * ideal + x * scale + x_max
-                maps[3][y,x] = (maps[3][y,x] - 0.5) * ideal + x * scale + x_max
-                maps[5][y,x] = (maps[5][y,x] - 0.5) * ideal + x * scale + x_max
+                maps[1][y,x] = (result[0,y,x,1] - 0.5) * ideal + x + scale * x_max
+                maps[3][y,x] = (result[0,y,x,3] - 0.5) * ideal + x + scale * x_max
+                maps[5][y,x] = (result[0,y,x,5] - 0.5) * ideal + x + scale * x_max
                 
                 # maps[c][yp][xp] = 0.5 + (label[c-1] - y - i * scale) / ideal                
-                maps[2][y,x] = (maps[2][y,x] - 0.5) * ideal + y * scale + y_max
-                maps[4][y,x] = (maps[4][y,x] - 0.5) * ideal + y * scale + y_max
-                maps[6][y,x] = (maps[6][y,x] - 0.5) * ideal + y * scale + y_max
-                maps[7][y,x] = (maps[7][y,x] - 0.5) * ideal + y * scale + y_max
+                maps[2][y,x] = (result[0,y,x,2] - 0.5) * ideal + y + scale * y_max
+                maps[4][y,x] = (result[0,y,x,4] - 0.5) * ideal + y + scale * y_max
+                maps[6][y,x] = (result[0,y,x,6] - 0.5) * ideal + y + scale * y_max
+                maps[7][y,x] = (result[0,y,x,7] - 0.5) * ideal + y + scale * y_max
+                # (M - 0.5) - I + x + x_max*S
                     
     return maps
                 
@@ -189,5 +190,51 @@ def get_info_from_pgp(file_path):
                 return p, gp
                 
     return None, None
+
+def showResults(result, img_path, scale, ideal):
+    
+    maps = result[0,:,:,0]
+    image = np.asmatrix(maps)
+    im_max = image.max()
+    thresh_value = (im_max * cfg.RESULT_TRESHOLD) / 100 
+    maps = threshold_result(maps, thresh_value)
+    
+    tmp = np.zeros((8,image.shape[0], image.shape[1]))
+    tmp[0] = maps
+    tmp = denormalize_to_true_value(result, tmp, scale, ideal)
+    
+    
+    img = cv2.imread(img_path, cv2.IMREAD_COLOR)
+    for y in range(image.shape[0]):
+        for x in range(image.shape[1]):
+            
+            if tmp[0][y,x] > 0:
+                # fbl_x = 766.9976689964997 
+                # fbl_y = 292.1749884809996
+                # fbr_x = 897.5057514572361 
+                # fbr_y = 292.8354111658222 
+                # rbl_x = 866.5701895091134 
+                # rbl_y = 380.04597547426044 
+                # ftl_y = 172.0861783040727
+                          
+                fbl_x = int(tmp[1][y,x])
+                fbl_y = int(tmp[2][y,x])
+                fbr_x = int(tmp[3][y,x])
+                fbr_y = int(tmp[4][y,x])
+                rbl_x = int(tmp[5][y,x])
+                rbl_y = int(tmp[6][y,x])
+                ftl_y = int(tmp[7][y,x])
+                
+                # front
+                cv2.line(img, (fbl_x,fbl_y), (fbr_x,fbr_y), (0,0,255), 2) 
+                cv2.line(img, (fbl_x,fbl_y), (rbl_x,rbl_y), (0,0,255), 2) 
+                cv2.line(img, (fbl_x,fbl_y), (fbl_x,ftl_y), (0,0,255), 2)
+                
+    cv2.imshow("result without NMS", img)
+    cv2.waitKey(0)
+            
+    
+    
+    
     
                 

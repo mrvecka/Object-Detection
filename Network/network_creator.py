@@ -95,24 +95,23 @@ class NetworkCreator():
         target = tf.py_func(self.create_target_response_map, [label, width, height, channels, radius,circle_ratio, boundaries, scale], [tf.float32])
         # assert target.shape != shaped_output.shape, "While computing loss of NN shape of ground truth must be same as shape of network result"
         
-        target = tf.squeeze(tf.stack(target))
-        target = tf.reshape(target,(height,width,channels))        
+        target = tf.reshape(target,(channels,height,width))        
         
         # number of neurons in each output layer
         N = width * height
         
         # count of positive pixels
         
-        N_p = tf.math.count_nonzero(image[:,:, 0])
+        N_p = tf.math.count_nonzero(image[0, :, :])
 
         
         second_error = 0
         error = 0.0
                    
         # get array of weight factor with the same shape as target 
-        initial = tf.Variable(tf.ones_like(target[:,:, 0]),dtype=tf.float32, name="initial")
+        initial = tf.Variable(tf.ones_like(target[0,:, :]),dtype=tf.float32, name="initial")
         tmp_initial = initial
-        condition = tf.greater(target[:,:, 0], tf.constant(0,dtype=tf.float32),name="greater")
+        condition = tf.greater(target[0,:, :], tf.constant(0,dtype=tf.float32),name="greater")
         weight_factor_array = initial.assign( tf.where(condition, (tmp_initial + self.weight_factor - 1), tmp_initial, name="where_condition"), name="assign" )
         
                     
@@ -121,12 +120,12 @@ class NetworkCreator():
         # weight_factor_array = tf.dtypes.cast(non_zero_indices, tf.float32)
         # weight_factor_array = tf.add(weight_factor_array, tf.add(tf.dtypes.cast(1,tf.float32), tf.multiply(weight_factor_array, tf.dtypes.cast(self.weight_factor - 1,tf.float32))))
         
-        error = tf.reduce_sum(tf.multiply(weight_factor_array, tf.square(tf.subtract(target[:,:, 0], image[:, :, 0]))))
+        error = tf.reduce_sum(tf.multiply(weight_factor_array, tf.square(tf.subtract(target[0,:, :], image[:, :, 0]))))
         for c in range(1, channels):
             second_error += tf.reduce_sum(
                 tf.multiply(self.weight_factor,
-                             tf.multiply(target[:, :, 0],
-                                          tf.square(tf.subtract(target[:,:, c], image[:, :, c])))))
+                             tf.multiply(target[0, :, :],
+                                          tf.square(tf.subtract(target[c,:, :], image[:, :, c])))))
         
                     
         error = (1/(2*N))*error
@@ -167,28 +166,27 @@ class NetworkCreator():
             
             #size = self.get_size_of_bounding_box(labels)
             if label[9] >= bound_below and label[9] <= bound_above:
-                x = label[7] / scale
-                y = label[8] / scale
+                x = int(label[7] / scale)
+                y = int(label[8] / scale)
                 
                 scaling_ratio = 1.0 / scale
                 # print((self.orig_height,self.orig_width))
                 #radius = ((circle_ration / scale) * szie ) - 1
                 
-                cv2.circle(maps[0], (int(x), int(y)), int(r), 255, -1)
-                
+                cv2.circle(maps[0], ( x, y ), int(r), 1, -1)
+                cv2.GaussianBlur(maps[0], (3, 3), 100)
+
                 # x_acc = x * scaling_ratio
                 # y_acc = y * scaling_ratio
-                for c in range(1,7):
-                    cv2.circle(maps[c], (int(x), int(y)), int(r), 1, -1)
-                    cv2.GaussianBlur(maps[c], (3, 3), 100)
+                for c in range(1,8):
                     
                     for l in range(-r,r,1):
                         for j in range(-r,r,1):
-                            xp = int(x) + j
-                            yp = int(y) + l
+                            xp = x + j
+                            yp = y + l
                             
                             if xp >= 0 and xp < width and yp >= 0 and yp < height:
-                                if maps[c][yp][xp] > 0.0:
+                                if maps[0][yp][xp] > 0.0:
                                     if c ==1 or c == 3 or c == 5:
                                         maps[c][yp][xp] = 0.5 + (label[c-1] - x - j * scale) / ideal
                                     elif c == 2 or c == 4 or c == 6 or c == 7:

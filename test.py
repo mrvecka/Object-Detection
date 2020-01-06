@@ -35,27 +35,10 @@ def start_test():
         save_results(response_maps_4,4)            
         save_results(response_maps_8,8)         
         save_results(response_maps_16,16)
+         
+        # extract_and_show(response_maps_2,response_maps_4,response_maps_8,response_maps_16,label_batch,calib_matrices,image_paths)
+        show_triangle(response_maps_2,response_maps_4,response_maps_8,response_maps_16,image_paths)
         
-        b_boxes_model = extract.extract_bounding_box(response_maps_2, label_batch[0], calib_matrices[0],image_paths[0], 2, 33)
-        if not b_boxes_model is None:
-            b_boxes_model.file_name = image_paths[0]
-            drawer.draw_bounding_boxes(b_boxes_model)
-            
-        
-        b_boxes_model = extract.extract_bounding_box(response_maps_4, label_batch[0], calib_matrices[0],image_paths[0], 4, 66)
-        if not b_boxes_model is None:
-            b_boxes_model.file_name = image_paths[0]
-            drawer.draw_bounding_boxes(b_boxes_model)
-        
-        b_boxes_model = extract.extract_bounding_box(response_maps_8, label_batch[0], calib_matrices[0],image_paths[0], 8, 133)
-        if not b_boxes_model is None:
-            b_boxes_model.file_name = image_paths[0]
-            drawer.draw_bounding_boxes(b_boxes_model)
-        
-        b_boxes_model = extract.extract_bounding_box(response_maps_16, label_batch[0], calib_matrices[0],image_paths[0], 16, 266)
-        if not b_boxes_model is None:
-            b_boxes_model.file_name = image_paths[0]
-            drawer.draw_bounding_boxes(b_boxes_model)
         
 def save_results(maps, scale):
     result = cv2.split(np.squeeze(maps,axis=0))
@@ -78,5 +61,36 @@ def save_results(maps, scale):
     path = r"C:\Users\Lukas\Documents\Object detection\result_test_s"+str(scale)+r"\response_map_7.jpg"
     cv2.imwrite(path, (result[7] - result[7].min()) * (255/(result[7].max() - result[7].min())))
     
+    
+def extract_and_show(response_maps_2,response_maps_4,response_maps_8,response_maps_16,label_batch,calib_matrices,image_paths):
+    
+    b_boxes_model = extract.extract_bounding_box(response_maps_2, label_batch[0], calib_matrices[0],image_paths[0], 2, 33)
+    if not b_boxes_model is None:
+        b_boxes_model.file_name = image_paths[0]
+        drawer.draw_bounding_boxes(b_boxes_model)
+        
+    
+    b_boxes_model = extract.extract_bounding_box(response_maps_4, label_batch[0], calib_matrices[0],image_paths[0], 4, 66)
+    if not b_boxes_model is None:
+        b_boxes_model.file_name = image_paths[0]
+        drawer.draw_bounding_boxes(b_boxes_model)
+    
+    b_boxes_model = extract.extract_bounding_box(response_maps_8, label_batch[0], calib_matrices[0],image_paths[0], 8, 133)
+    if not b_boxes_model is None:
+        b_boxes_model.file_name = image_paths[0]
+        drawer.draw_bounding_boxes(b_boxes_model)
+    
+    b_boxes_model = extract.extract_bounding_box(response_maps_16, label_batch[0], calib_matrices[0],image_paths[0], 16, 266)
+    if not b_boxes_model is None:
+        b_boxes_model.file_name = image_paths[0]
+        drawer.draw_bounding_boxes(b_boxes_model)
+        
+def show_triangle(response_maps_2,response_maps_4,response_maps_8,response_maps_16,image_paths):
+    
+    extract.showResults(response_maps_2,image_paths[0], 2, 33)
+    extract.showResults(response_maps_4,image_paths[0], 4, 66)
+    extract.showResults(response_maps_8,image_paths[0], 8, 133)
+    extract.showResults(response_maps_16,image_paths[0], 16, 266)
+            
 if __name__ == "__main__":
     start_test()

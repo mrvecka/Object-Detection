@@ -5,7 +5,7 @@ from Network.network_creator import NetworkCreator
 
 def StartTrain():
     loader = load.Loader()
-    loader.load_data()    
+    loader.load_data()
     
     nc = NetworkCreator()
     nc.train(loader)

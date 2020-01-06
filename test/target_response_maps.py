@@ -43,14 +43,14 @@ def create_target_response_map( labels, width, height, channels, r, circle_ratio
         
         #size = self.get_size_of_bounding_box(labels)
         if label[9] >= bound_below and label[9] <= bound_above:
-            x = label[7] / scale
-            y = label[8] / scale
+            x = int(label[7] / scale)
+            y = int(label[8] / scale)
             
             scaling_ratio = 1.0 / scale
             # print((self.orig_height,self.orig_width))
             #radius = ((circle_ration / scale) * szie ) - 1
             
-            cv2.circle(maps[0], (int(x), int(y)), int(r), 1, -1)
+            cv2.circle(maps[0], (x, y), int(r), 1, -1)
             cv2.GaussianBlur(maps[0], (3, 3), 100)
 
             # x_acc = x * scaling_ratio
@@ -70,20 +70,20 @@ def create_target_response_map( labels, width, height, channels, r, circle_ratio
             dense_label = h.normalize(dense_label)
             
             for c in range(1,8):
-                cv2.circle(maps[c], (int(x), int(y)), int(r), 1, -1)
-                cv2.GaussianBlur(maps[c], (3, 3), 100)
                 
                 for l in range(-r,r,1):
                     for j in range(-r,r,1):
-                        xp = int(x) + j
-                        yp = int(y) + l
+                        xp = x + j
+                        yp = y + l
                         
                         if xp >= 0 and xp < width and yp >= 0 and yp < height:
-                            if maps[c][yp][xp] > 0.0:
-                                if c ==1 or c == 3 or c == 5:
-                                    maps[c][yp][xp] =dense_label[c-1]
+                            if maps[0][yp][xp] > 0.0:
+                                if c == 1 or c == 3 or c == 5:
+                                    maps[c][yp][xp] = 100
+                                    #maps[c][yp][xp] = dense_label[c-1]
                                 elif c == 2 or c == 4 or c == 6 or c == 7:
-                                    maps[c][yp][xp] = dense_label[c-1]
+                                    maps[c][yp][xp] = 100
+                                    #maps[c][yp][xp] = dense_label[c-1]
 
     result = cv2.merge(maps)
     
@@ -97,8 +97,8 @@ def test_target_map_creation(name):
 
     label = tf.placeholder(tf.float32,(None,None,10), name="label")
 
-    target = tf.py_func(create_target_response_map, [label[0], 16, 8, 8, 2,0.3, 0.33, 16], [tf.float32])
-    target = tf.reshape(target,(8,16,8))    
+    target = tf.py_func(create_target_response_map, [label[0], 128, 64, 8, 2,0.3, 0.33, 4], [tf.float32])
+    target = tf.reshape(target,(8,64,128))    
     
     init = tf.global_variables_initializer()
     errors = [2.0,2.0]
@@ -110,21 +110,50 @@ def test_target_map_creation(name):
 
     image_batch, labels_batch, image_paths, calib_matrices = loader.get_test_data(1)
     
-    # maps = create_target_response_map(labels_batch[0], 16, 8, 8, 2,0.3, 0.33, 16)
+    # maps = create_target_response_map(labels_batch[0], 128, 64, 8, 2,0.3, 0.33, 4)
+    # print(maps.shape)
+    # tmp = h.change_first_x_last_dim(maps)
+    
+    # cv2.imshow("target 1", maps[0,:,:])
+    # cv2.imshow("target 2", maps[1,:,:])
+    # cv2.imshow("target 3", maps[2,:,:])
+    # cv2.imshow("target 4", maps[3,:,:])
+    # cv2.imshow("target 5", maps[4,:,:])
+    # cv2.imshow("target 6", maps[5,:,:])
+    # cv2.imshow("target 7", maps[6,:,:])
+    # cv2.imshow("target 8", maps[7,:,:])
+    
+    # cv2.imshow("target 11", tmp[:,:,0])
+    # cv2.imshow("target 22", tmp[:,:,1])
+    # cv2.imshow("target 33", tmp[:,:,2])
+    # cv2.imshow("target 44", tmp[:,:,3])
+    # cv2.imshow("target 55", tmp[:,:,4])
+    # cv2.imshow("target 66", tmp[:,:,5])
+    # cv2.imshow("target 77", tmp[:,:,6])
+    # cv2.imshow("target 88", tmp[:,:,7])
+    
+    # cv2.waitKey(0)
+                
+    #         cv2.waitKey(0)
     # tmp = np.reshape(maps,(8,16,8))
     # print(tmp)
     with tf.Session() as session:
         # initialise the variables
 
-            session.run(init)
+        session.run(init)
 
-            maps = session.run(target, feed_dict={label: labels_batch})
+        tmp = session.run(target, feed_dict={label: labels_batch})
+        maps = h.change_first_x_last_dim(tmp)
+        cv2.imshow("target 1", maps[:,:,0])
+        cv2.imshow("target 2", maps[:,:,1])
+        cv2.imshow("target 3", maps[:,:,2])
+        cv2.imshow("target 4", maps[:,:,3])
+        cv2.imshow("target 5", maps[:,:,4])
+        cv2.imshow("target 6", maps[:,:,5])
+        cv2.imshow("target 7", maps[:,:,6])
+        cv2.imshow("target 8", maps[:,:,7])
             
-            first = maps[:,:,0]
-            cv2.imshow("target 1", first)
-            cv2.imshow("target 2", maps[:,:,1])
-                
-            cv2.waitKey(0)
+        cv2.waitKey(0)
             
             # print("Epoch:", (epoch + 1), "test error: {:.5f}".format(test_acc), " learning rate: ",learning)
 
