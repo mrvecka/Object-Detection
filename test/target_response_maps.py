@@ -56,19 +56,6 @@ def create_target_response_map( labels, width, height, channels, r, circle_ratio
             # x_acc = x * scaling_ratio
             # y_acc = y * scaling_ratio
             
-            # apply densebox method
-            dense_label = label[0:7]
-            dense_label[0] = x - dense_label[0]
-            dense_label[2] = x - dense_label[2]
-            dense_label[4] = x - dense_label[4]
-            dense_label[1] = y - dense_label[1]
-            dense_label[3] = y - dense_label[3]
-            dense_label[5] = y - dense_label[5]
-            dense_label[6] = y - dense_label[6]
-            
-            #normalize to range <0,1>
-            dense_label = h.normalize(dense_label)
-            
             for c in range(1,8):
                 
                 for l in range(-r,r,1):
@@ -78,14 +65,11 @@ def create_target_response_map( labels, width, height, channels, r, circle_ratio
                         
                         if xp >= 0 and xp < width and yp >= 0 and yp < height:
                             if maps[0][yp][xp] > 0.0:
-                                if c == 1 or c == 3 or c == 5:
-                                    maps[c][yp][xp] = 100
-                                    #maps[c][yp][xp] = dense_label[c-1]
+                                if c ==1 or c == 3 or c == 5:
+                                    maps[c][yp][xp] = 0.5 + (label[c-1] - x - j * scale) / ideal
                                 elif c == 2 or c == 4 or c == 6 or c == 7:
-                                    maps[c][yp][xp] = 100
-                                    #maps[c][yp][xp] = dense_label[c-1]
+                                    maps[c][yp][xp] = 0.5 + (label[c-1] - y - l * scale) / ideal
 
-    result = cv2.merge(maps)
     
     return np.asarray(maps,dtype=np.float32)
 
@@ -97,8 +81,17 @@ def test_target_map_creation(name):
 
     label = tf.placeholder(tf.float32,(None,None,10), name="label")
 
-    target = tf.py_func(create_target_response_map, [label[0], 128, 64, 8, 2,0.3, 0.33, 4], [tf.float32])
-    target = tf.reshape(target,(8,64,128))    
+    target = tf.py_func(create_target_response_map, [label[0], 128, 64, 8, 2,0.3, 0.33, 2], [tf.float32])
+    target2 = tf.reshape(target,(8,64,128))    
+    
+    tmp = tf.py_func(create_target_response_map, [label[0], 64, 32, 8, 2,0.3, 0.33, 4], [tf.float32])
+    target4 = tf.reshape(tmp,(8,32,64)) 
+    
+    tmp = tf.py_func(create_target_response_map, [label[0], 32, 16, 8, 2,0.3, 0.33, 8], [tf.float32])
+    target8 = tf.reshape(tmp,(8,16,32)) 
+    
+    tmp = tf.py_func(create_target_response_map, [label[0], 16, 8, 8, 2,0.3, 0.33, 16], [tf.float32])
+    target16 = tf.reshape(tmp,(8,8,16)) 
     
     init = tf.global_variables_initializer()
     errors = [2.0,2.0]
@@ -142,16 +135,47 @@ def test_target_map_creation(name):
 
         session.run(init)
 
-        tmp = session.run(target, feed_dict={label: labels_batch})
+        tmp = session.run(target2, feed_dict={label: labels_batch})
         maps = h.change_first_x_last_dim(tmp)
-        cv2.imshow("target 1", maps[:,:,0])
-        cv2.imshow("target 2", maps[:,:,1])
-        cv2.imshow("target 3", maps[:,:,2])
-        cv2.imshow("target 4", maps[:,:,3])
-        cv2.imshow("target 5", maps[:,:,4])
-        cv2.imshow("target 6", maps[:,:,5])
-        cv2.imshow("target 7", maps[:,:,6])
-        cv2.imshow("target 8", maps[:,:,7])
+        cv2.imshow("target 2", maps[:,:,0])
+        cv2.imwrite(r'C:\Users\Lukas\Documents\Object detection\test\target2.jpg', 255*maps[:,:,0])
+        resized = cv2.resize(maps[:,:,0], (1242,375), interpolation = cv2.INTER_AREA)
+        cv2.imshow("resized", resized)
+        cv2.imwrite(r'C:\Users\Lukas\Documents\Object detection\test\resized2.jpg', 255*resized)
+        # cv2.imshow("target 2", maps[:,:,1])
+        # cv2.imshow("target 3", maps[:,:,2])
+        # cv2.imshow("target 4", maps[:,:,3])
+        # cv2.imshow("target 5", maps[:,:,4])
+        # cv2.imshow("target 6", maps[:,:,5])
+        # cv2.imshow("target 7", maps[:,:,6])
+        # cv2.imshow("target 8", maps[:,:,7])
+               
+        tmp2 = session.run(target4, feed_dict={label: labels_batch})
+        maps = h.change_first_x_last_dim(tmp2)
+        cv2.imshow("target 4", maps[:,:,0])
+        cv2.imwrite(r'C:\Users\Lukas\Documents\Object detection\test\target4.jpg', 255*maps[:,:,0])
+        resized4 = cv2.resize(maps[:,:,0], (1242,375), interpolation = cv2.INTER_AREA)
+        cv2.imshow("resized4", resized4)
+        cv2.imwrite(r'C:\Users\Lukas\Documents\Object detection\test\resized4.jpg', 255*resized4)
+
+        
+        tmp4 = session.run(target8, feed_dict={label: labels_batch})
+        maps = h.change_first_x_last_dim(tmp4)
+        cv2.imshow("target 8", maps[:,:,0])
+        cv2.imwrite(r'C:\Users\Lukas\Documents\Object detection\test\target8.jpg', 255*maps[:,:,0])
+        resized8 = cv2.resize(maps[:,:,0], (1242,375), interpolation = cv2.INTER_AREA)
+        cv2.imshow("resized8", resized8)
+        cv2.imwrite(r'C:\Users\Lukas\Documents\Object detection\test\resized8.jpg', 255*resized8)
+
+                
+        tmp8 = session.run(target16, feed_dict={label: labels_batch})
+        maps = h.change_first_x_last_dim(tmp8)
+        cv2.imshow("target 16", maps[:,:,0])
+        cv2.imwrite(r'C:\Users\Lukas\Documents\Object detection\test\target16.jpg', 255*maps[:,:,0])
+        resized16 = cv2.resize(maps[:,:,0], (1242,375), interpolation = cv2.INTER_AREA)
+        cv2.imshow("resized6", resized16)
+        cv2.imwrite(r'C:\Users\Lukas\Documents\Object detection\test\resized16.jpg', 255*resized16)
+
             
         cv2.waitKey(0)
             
@@ -177,7 +201,5 @@ def test_target_map_creation(name):
 
 
 if __name__ == "__main__":    
-
-    
     test_target_map_creation("000046") 
     

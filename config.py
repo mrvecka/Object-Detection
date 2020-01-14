@@ -13,7 +13,7 @@ TRAINING_SPLIT = 70
 
 # amount of data from dataset which will be loaded
 # -1 for all data
-DATA_AMOUNT = 8
+DATA_AMOUNT = 1
 
 IMAGE_EXTENSION = 'png'
 
@@ -31,7 +31,7 @@ IMG_CHANNELS = 3 # based on channel number, image will be loaded colored or gray
 
 DEVICE_NAME = "/gpu:0"
 LEARNING_RATE = 0.01
-BATCH_SIZE = 8
+BATCH_SIZE = 1
 MAX_ERROR = 0.001
 ITERATIONS = 100
 WEIGHT_FACTOR = 2.0

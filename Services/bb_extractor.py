@@ -126,17 +126,17 @@ def denormalize_to_true_value(result, maps, scale, ideal):
     for y in range(len(maps[0])):
         for x in range(len(maps[0,y])):
             if maps[0][y,x] > 0:
-                y_max,x_max = find_local_max_coordinates(maps[0], y,x, scale)
+                y_max, x_max = find_local_max_coordinates(maps[0], y,x, scale)
                 # maps[c][yp][xp] = 0.5 + (label[c-1] - x - j * scale) / ideal
-                maps[1][y,x] = (result[0,y,x,1] - 0.5) * ideal + x + scale * x_max
-                maps[3][y,x] = (result[0,y,x,3] - 0.5) * ideal + x + scale * x_max
-                maps[5][y,x] = (result[0,y,x,5] - 0.5) * ideal + x + scale * x_max
+                maps[1][y,x] = (result[0,y,x,1] - 0.5) * ideal + x_max + x / scale
+                maps[3][y,x] = (result[0,y,x,3] - 0.5) * ideal + x_max + x / scale
+                maps[5][y,x] = (result[0,y,x,5] - 0.5) * ideal + x_max + x / scale
                 
                 # maps[c][yp][xp] = 0.5 + (label[c-1] - y - i * scale) / ideal                
-                maps[2][y,x] = (result[0,y,x,2] - 0.5) * ideal + y + scale * y_max
-                maps[4][y,x] = (result[0,y,x,4] - 0.5) * ideal + y + scale * y_max
-                maps[6][y,x] = (result[0,y,x,6] - 0.5) * ideal + y + scale * y_max
-                maps[7][y,x] = (result[0,y,x,7] - 0.5) * ideal + y + scale * y_max
+                maps[2][y,x] = (result[0,y,x,2] - 0.5) * ideal + y_max + y / scale
+                maps[4][y,x] = (result[0,y,x,4] - 0.5) * ideal + y_max + y / scale
+                maps[6][y,x] = (result[0,y,x,6] - 0.5) * ideal + y_max + y / scale
+                maps[7][y,x] = (result[0,y,x,7] - 0.5) * ideal + y_max + y / scale
                 # (M - 0.5) - I + x + x_max*S
                     
     return maps

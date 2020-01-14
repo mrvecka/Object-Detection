@@ -5,6 +5,8 @@ import config as cfg
 import os
 import cv2
 import numpy as np
+from Services.lr_queue import LRQueue 
+
 
 class NetworkCreator():
     
@@ -69,7 +71,7 @@ class NetworkCreator():
         self.net_s_8 = odn.create_detection_network_output_layer('output8', net, [1, 1], 512, 8, 1, 1, self.is_training)
 
 
-        net = odn.create_detection_network_pool_layer(net, [2,2], 'layer15')
+        net = odn.create_detection_network_pool_layer(net , [2,2], 'layer15')
 
         net = odn.create_detection_network_layer('layer16', net, [3,3],512, 512, 1, 1, self.is_training)
         net = odn.normalization_layer(net, self.is_training)
@@ -102,7 +104,7 @@ class NetworkCreator():
         
         # count of positive pixels
         
-        N_p = tf.math.count_nonzero(image[0, :, :])
+        N_p = tf.math.count_nonzero(image[:, :, 0])
 
         
         second_error = 0
@@ -191,10 +193,8 @@ class NetworkCreator():
                                         maps[c][yp][xp] = 0.5 + (label[c-1] - x - j * scale) / ideal
                                     elif c == 2 or c == 4 or c == 6 or c == 7:
                                         maps[c][yp][xp] = 0.5 + (label[c-1] - y - l * scale) / ideal
-
-        result = cv2.merge(maps)
         
-        return np.asarray(result,dtype=np.float32)
+        return np.asarray(maps,dtype=np.float32)
 
     def network_loss_function(self,input, labels, radius, circle_ration, boundaries, scale):
         
@@ -256,26 +256,52 @@ class NetworkCreator():
             # writer = tf.summary.FileWriter(graph_path, session.graph)
             test_acc = 1
             epoch = 1
-            while test_acc > cfg.MAX_ERROR:
+            lr_queue = LRQueue()
+            while test_acc > 0.001:
                 for i in range(iterations):
                     image_batch, labels_batch = loader.get_train_data(self.BatchSize)                    
                     session.run(optimizer, 
                                     feed_dict={image_placeholder: image_batch, labels_placeholder: labels_batch, is_training: True})
 
                 image_batch, labels_batch = loader.get_train_data(self.BatchSize)
-                test_acc = session.run(error_value, 
+                test_acc, s_2 = session.run([error_value,self.net_s_2], 
                                 feed_dict={image_placeholder: image_batch, labels_placeholder: labels_batch, is_training: False})
+                # cv2.imshow("test response",s_2[0,:,:,0])
+                # cv2.waitKey()
+                # cv2.destroyAllWindows()
                 
                 print("Epoch:", (epoch), "test error: {:.5f}".format(test_acc))
+                lr_queue.put(test_acc)
                 epoch += 1
                 
             saver.save(session, cfg.MODEL_PATH)
+            
+            
+            # new_saver = tf.train.import_meta_graph(cfg.MODEL_PATH + '.meta')
+            # new_saver.restore(session, tf.train.latest_checkpoint('model/'))
+            
+            # graph = tf.get_default_graph()
+            # image_placeholder = graph.get_tensor_by_name("input_image_placeholder:0")
+            # is_training = graph.get_tensor_by_name("input_is_training_placeholder:0")
+            
+            # predict_2 = graph.get_tensor_by_name("output2_convolution:0")
+            # predict_4 = graph.get_tensor_by_name("output4_convolution:0")
+            # predict_8 = graph.get_tensor_by_name("output8_convolution:0")
+            # predict_16 = graph.get_tensor_by_name("output16_convolution:0")
+        
+            image_batch, label_batch, image_paths, calib_matrices = loader.get_test_data(1)
+                
+            response_maps_2, response_maps_4, response_maps_8, response_maps_16 = session.run([self.net_s_2, self.net_s_4, self.net_s_8, self.net_s_16], feed_dict={image_placeholder: image_batch,  is_training: False})
+            self.save_results(response_maps_2,2)            
+            self.save_results(response_maps_4,4)            
+            self.save_results(response_maps_8,8)         
+            self.save_results(response_maps_16,16)
                         
             
     def save_results(self, maps, scale):
         result = cv2.split(np.squeeze(maps,axis=0))
         path = r"C:\Users\Lukas\Documents\Object detection\result_s"+str(scale)+r"\response_map_0.jpg"
-        cv2.imwrite(path, (result[0] - result[0].min()) * (255/(result[0].max() - result[0].min())))
+        cv2.imwrite(path, (maps[0,:,:,0] - maps[0,:,:,0].min()) * (255/(maps[0,:,:,0].max() - maps[0,:,:,0].min())))
         path = r"C:\Users\Lukas\Documents\Object detection\result_s"+str(scale)+r"\response_map_1.jpg"
         cv2.imwrite(path, 255* result[1])
         path = r"C:\Users\Lukas\Documents\Object detection\result_s"+str(scale)+r"\response_map_2.jpg"

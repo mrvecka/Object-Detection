@@ -47,19 +47,19 @@ def save_results(maps, scale):
     path = r"C:\Users\Lukas\Documents\Object detection\result_test_s"+str(scale)+r"\response_map_0.jpg"
     cv2.imwrite(path, tmp)
     path = r"C:\Users\Lukas\Documents\Object detection\result_test_s"+str(scale)+r"\response_map_1.jpg"
-    cv2.imwrite(path, (result[1] - result[1].min()) * (255/(result[1].max() - result[1].min())))
+    cv2.imwrite(path, (maps[0,:,:,1] - maps[0,:,:,1].min()) * (255/(maps[0,:,:,1].max() - maps[0,:,:,1].min())))
     path = r"C:\Users\Lukas\Documents\Object detection\result_test_s"+str(scale)+r"\response_map_2.jpg"
-    cv2.imwrite(path, (result[2] - result[2].min()) * (255/(result[2].max() - result[2].min())))
+    cv2.imwrite(path, maps[0,:,:,2])
     path = r"C:\Users\Lukas\Documents\Object detection\result_test_s"+str(scale)+r"\response_map_3.jpg"
-    cv2.imwrite(path, (result[3] - result[3].min()) * (255/(result[3].max() - result[3].min())))
+    cv2.imwrite(path, maps[0,:,:,3])
     path = r"C:\Users\Lukas\Documents\Object detection\result_test_s"+str(scale)+r"\response_map_4.jpg"
-    cv2.imwrite(path, (result[4] - result[4].min()) * (255/(result[4].max() - result[4].min())))
+    cv2.imwrite(path, maps[0,:,:,4])
     path = r"C:\Users\Lukas\Documents\Object detection\result_test_s"+str(scale)+r"\response_map_5.jpg"
-    cv2.imwrite(path, (result[5] - result[5].min()) * (255/(result[5].max() - result[5].min())))
+    cv2.imwrite(path, maps[0,:,:,5])
     path = r"C:\Users\Lukas\Documents\Object detection\result_test_s"+str(scale)+r"\response_map_6.jpg"
-    cv2.imwrite(path, (result[6] - result[6].min()) * (255/(result[6].max() - result[6].min())))
+    cv2.imwrite(path, maps[0,:,:,6])
     path = r"C:\Users\Lukas\Documents\Object detection\result_test_s"+str(scale)+r"\response_map_7.jpg"
-    cv2.imwrite(path, (result[7] - result[7].min()) * (255/(result[7].max() - result[7].min())))
+    cv2.imwrite(path, maps[0,:,:,7])
     
     
 def extract_and_show(response_maps_2,response_maps_4,response_maps_8,response_maps_16,label_batch,calib_matrices,image_paths):
