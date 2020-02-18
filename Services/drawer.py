@@ -1,6 +1,6 @@
 import cv2
 
-def draw_bounding_boxes(image_model):
+def draw_bounding_boxes(image_model, scale):
     
     img = cv2.imread(image_model.file_name, cv2.IMREAD_COLOR)
     height = img.shape[0]
@@ -30,6 +30,7 @@ def draw_bounding_boxes(image_model):
         
     resized_back = cv2.resize(resized, (width,height))
     cv2.imshow("result without NMS", resized)
+    cv2.imwrite(r"C:\Users\Lukas\Documents\Object detection\output\output_s"+ str(scale) +".jpg",resized)
     cv2.waitKey(0)
         
         

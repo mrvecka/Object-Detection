@@ -82,7 +82,7 @@ def test_target_map_creation(name):
     label = tf.placeholder(tf.float32,(None,None,10), name="label")
 
     target = tf.py_func(create_target_response_map, [label[0], 128, 64, 8, 2,0.3, 0.33, 2], [tf.float32])
-    target2 = tf.reshape(target,(8,64,128))    
+    target2 = tf.reshape(target,(8,64,128))
     
     tmp = tf.py_func(create_target_response_map, [label[0], 64, 32, 8, 2,0.3, 0.33, 4], [tf.float32])
     target4 = tf.reshape(tmp,(8,32,64)) 
@@ -93,6 +93,12 @@ def test_target_map_creation(name):
     tmp = tf.py_func(create_target_response_map, [label[0], 16, 8, 8, 2,0.3, 0.33, 16], [tf.float32])
     target16 = tf.reshape(tmp,(8,8,16)) 
     
+    initial = tf.Variable(tf.zeros_like(target2[0,:, :]),dtype=tf.float32, name="initial")
+    tmp_initial = initial
+    condition = tf.greater(target2[0,:, :], tf.constant(0,dtype=tf.float32),name="greater")
+    weight_factor_array = initial.assign( tf.where(condition, (tmp_initial + 2.0), tmp_initial, name="where_condition"), name="assign" )
+    
+    
     init = tf.global_variables_initializer()
     errors = [2.0,2.0]
     
@@ -101,7 +107,7 @@ def test_target_map_creation(name):
     loss_output = tf.multiply(errors,loss_constant, name='loss_output_multiply')
     
 
-    image_batch, labels_batch, image_paths, calib_matrices = loader.get_test_data(1)
+    image_batch, labels_batch, image_paths,image_names, calib_matrices = loader.get_test_data(1)
     
     # maps = create_target_response_map(labels_batch[0], 128, 64, 8, 2,0.3, 0.33, 4)
     # print(maps.shape)
@@ -135,9 +141,12 @@ def test_target_map_creation(name):
 
         session.run(init)
 
-        tmp = session.run(target2, feed_dict={label: labels_batch})
+        tmp,weight = session.run([target2,weight_factor_array], feed_dict={label: labels_batch})
         maps = h.change_first_x_last_dim(tmp)
         cv2.imshow("target 2", maps[:,:,0])
+        cv2.imshow("weights", weight*127)
+        cv2.waitKey(0)
+
         cv2.imwrite(r'C:\Users\Lukas\Documents\Object detection\test\target2.jpg', 255*maps[:,:,0])
         resized = cv2.resize(maps[:,:,0], (1242,375), interpolation = cv2.INTER_AREA)
         cv2.imshow("resized", resized)

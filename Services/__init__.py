@@ -7,3 +7,4 @@ import Services.ground_plane_extractor as gpe
 import Services.helper as helper
 import Services.loader as loader
 import Services.non_maxima_supression as nms
+import Services.freeze_graph as freeze

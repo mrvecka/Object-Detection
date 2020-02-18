@@ -7,19 +7,17 @@ import Services.geometry as geom
 
 def extract_bounding_box(result, label, calib_matrix, img_path, scale, ideal):
     
-    maps = cv2.split(np.squeeze(result,axis=0))
-    # calib_matrix, gp = get_info_from_pgp(img_path)
-    # if calib_matrix in None:
-    #     return None
-    # rotation_matrix = geom.get_rotation_matrix(-1.54)
-    # calib_matrix = np.matmul(calib_matrix, rotation_matrix)
-    
-    image = np.asmatrix(maps[0])
+    print("EXTRACTING BOUNDING BOXES STARTED ON SCALE ", scale)
+    prob = result[0,:,:,0]
+    image = np.asmatrix(prob)
     im_max = image.max()
     thresh_value = (im_max * cfg.RESULT_TRESHOLD) / 100 
-    image = threshold_result(image, thresh_value)
-    maps = denormalize_to_true_value(maps, scale, ideal)
+    maps = threshold_result(prob, thresh_value)
     
+    tmp = np.zeros((9,image.shape[0], image.shape[1]))
+    tmp[0] = prob
+    maps,object_count = denormalize_to_true_value(result, tmp, scale, ideal)
+    print("FOUND: ", object_count, " OBJECTS")
     image_model = ResultBoxModel()
     for y in range(image.shape[0]):
         
@@ -34,6 +32,7 @@ def extract_bounding_box(result, label, calib_matrix, img_path, scale, ideal):
                 rbl_x = maps[5][y,x]
                 rbl_y = maps[6][y,x]
                 ftl_y = maps[7][y,x]
+                object_index = maps[8][y,x]
 
                 data = np.asarray([[fbl_x, fbr_x, rbl_x],
                 [fbl_y, fbr_y, rbl_y],
@@ -100,9 +99,12 @@ def extract_bounding_box(result, label, calib_matrix, img_path, scale, ideal):
                 box.ftr = (int(points[0,5]), int(points[1,5]))
                 box.rtl = (int(points[0,6]), int(points[1,6]))
                 box.rtr = (int(points[0,7]), int(points[1,7]))
-
+                box.confidence = maps[0][y,x]
+                box.object_index = object_index
+                
                 image_model.boxes.append(box)
                 
+    print("EXTRACTION FINISHED!")
     return image_model
                 
 def threshold_result(maps, threshold):
@@ -123,10 +125,16 @@ def threshold_result(maps, threshold):
 
 def denormalize_to_true_value(result, maps, scale, ideal):
 
+    object_count = 0
+    y_max = 0
+    x_max = 0
     for y in range(len(maps[0])):
         for x in range(len(maps[0,y])):
             if maps[0][y,x] > 0:
                 y_max, x_max = find_local_max_coordinates(maps[0], y,x, scale)
+                if y_max != 0 and x_max != 0:
+                    object_count += 1
+                    
                 # maps[c][yp][xp] = 0.5 + (label[c-1] - x - j * scale) / ideal
                 maps[1][y,x] = (result[0,y,x,1] - 0.5) * ideal + x_max + x / scale
                 maps[3][y,x] = (result[0,y,x,3] - 0.5) * ideal + x_max + x / scale
@@ -137,9 +145,10 @@ def denormalize_to_true_value(result, maps, scale, ideal):
                 maps[4][y,x] = (result[0,y,x,4] - 0.5) * ideal + y_max + y / scale
                 maps[6][y,x] = (result[0,y,x,6] - 0.5) * ideal + y_max + y / scale
                 maps[7][y,x] = (result[0,y,x,7] - 0.5) * ideal + y_max + y / scale
+                maps[8][y,x] = object_count
                 # (M - 0.5) - I + x + x_max*S
                     
-    return maps
+    return maps, object_count
                 
 def find_local_max_coordinates(prob_map, y, x, scale):
     

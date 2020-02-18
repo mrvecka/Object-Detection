@@ -1,12 +1,19 @@
+import os
+import sys
+
+currentdir = os.path.dirname(os.path.realpath(__file__))
+parentdir = os.path.dirname(currentdir)
+sys.path.append(parentdir)
+
 import cv2
 import numpy as np
 import random
-from Models.labelModel import LabelModel
-from Models.dataModel import DataModel
-import config as cfg
-import Models.bb3txt as bb
 import Services.fileworker as fw
 import Services.helper as h
+from Models.labelModel import LabelModel
+from Models.dataModel import DataModel
+import Models.bb3txt as bb
+import config as cfg
 
 class Loader:
     def __init__(self):
@@ -99,9 +106,7 @@ class Loader:
             labels = self._load_label(label_path, file_name, calib_matrix, width, height)
             if labels is None:
                 continue
-            
-            if len(labels) == 0:
-                continue
+
             
             
             
@@ -275,10 +280,11 @@ class Loader:
 
                 bb3_label = bb.create_bb3txt_object(label, file_name, calib_matrix, width, height)
                 labels.append(bb3_label)
-                              
-        if len(labels) == 0:
-            return None
-        else:
+            
+            if len(labels) == 0:
+                empty = bb.create_empty_object(file_name)
+                labels.append(empty)
+                        
             bb.write_bb3_to_file(labels)
             return labels
             
@@ -316,8 +322,6 @@ class Loader:
         data = random.sample(self.Data, batch_size)
         result_image = []
         result_label = []
-        result_object_count = []
-        result_images_paths = []
         for x in range(batch_size):
             result_image.append(data[x].image)
             labels = self.labels_array_for_training(data[x].labels)
@@ -332,13 +336,32 @@ class Loader:
         result_image = []
         result_label = []
         result_images_paths = []
+        result_image_names = []
         result_calib_matrices = []
         for x in range(batch_size):
             result_image.append(data[x].image)
             labels = self.labels_array_for_training(data[x].labels)
             result_label.append(labels)
             result_images_paths.append(data[x].image_path)
+            result_image_names.append(data[x].image_name)
             result_calib_matrices.append(data[x].calib_matrix)
+            
+        result_label = self.complete_uneven_arrays(result_label)
+        return np.asarray(result_image), np.asarray(result_label), np.asarray(result_images_paths),np.asarray(result_image_names), np.asarray(result_calib_matrices)
+    
+    def get_test_data_sequentialy(self, i):
+        
+        data = self.Data[i]
+        result_image = []
+        result_label = []
+        result_images_paths = []
+        result_calib_matrices = []
+        for x in range(1):
+            result_image.append(data.image)
+            labels = self.labels_array_for_training(data.labels)
+            result_label.append(labels)
+            result_images_paths.append(data.image_path)
+            result_calib_matrices.append(data.calib_matrix)
             
         result_label = self.complete_uneven_arrays(result_label)
         return np.asarray(result_image), np.asarray(result_label), np.asarray(result_images_paths), np.asarray(result_calib_matrices)

@@ -1,8 +1,15 @@
 
 class ResultBoxModel():
+    
     def __init__(self):
-        self.file_name: ''
         self.boxes = []
+        self.file_name = ''
+
+class BoxesWithEthalons():
+    
+    def __init__(self):
+        self.boxes = []        
+        self.ethalon = ()
 
 
 class BoxModel():
@@ -19,26 +26,4 @@ class BoxModel():
         self.rtl = ()
         self.rtr = ()
         
-        # self.fbl_x = 0
-        # self.fbl_y = 0
-        
-        # self.fbr_x = 0
-        # self.fbr_y = 0
-        
-        # self.ftl_x = 0
-        # self.ftl_y = 0
-        
-        # self.ftr_x = 0
-        # self.ftr_y = 0
-        
-        # self.rbl_x = 0
-        # self.rbl_y = 0
-        
-        # self.rbr_x = 0
-        # self.rbr_y = 0
-        
-        # self.rtl_x = 0
-        # self.rtl_y = 0
-        
-        # self.rtr_x = 0
-        # self.rtr_y = 0
+        self.object_index = 0

@@ -26,6 +26,27 @@ class BB3Txt():
         data = self.file_name + ' ' + self.label + ' ' + str(self.confidence) + ' ' + str(self.fbl_x) + ' ' + str(self.fbl_y) + ' ' + str(self.fbr_x) + ' ' + str(self.fbr_y) + ' ' + str(self.rbl_x) + ' ' + str(self.rbl_y) + ' ' + str(self.ftl_y) + ' ' + str(self.bb_center_x) + ' ' + str(self.bb_center_y) + ' ' + str(self.largest_dim)
         return data
 
+def create_empty_object(file_name):
+    bb3 = BB3Txt()
+    bb3.file_name = file_name
+    bb3.label = "-1"
+    bb3.confidence = -1
+    
+    bb3.rbl_x = -1
+    bb3.rbl_y = -1
+    bb3.fbl_x = -1
+    bb3.fbl_y = -1
+    bb3.fbr_x = -1
+    bb3.fbr_y = -1
+    bb3.ftl_y = -1
+    bb3.bb_center_x = -1
+    bb3.bb_center_y = -1
+    bb3.bb_center_x = -1
+    bb3.bb_center_y = -1    
+    bb3.largest_dim = -1
+    
+    return bb3
+
 def create_bb3txt_object(label, file_name, P, width, height) -> BB3Txt:
     bb3 = BB3Txt()
     bb3.file_name = file_name

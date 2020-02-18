@@ -17,7 +17,7 @@ def create_detection_network_layer(name, input_data, filter_kernel_shape, num_in
     conv_filter_shape = [filter_kernel_shape[0], filter_kernel_shape[1], num_input_channels, num_output_channels]
 
     # initialize weights anddd bias for the filter
-    weights = tf.Variable(tf.truncated_normal(conv_filter_shape, stddev=0.1), name=name+'_weights', trainable=True)
+    weights = tf.Variable(tf.truncated_normal(conv_filter_shape, stddev=0.1), name=name+'_weights', trainable=is_training)
 
     # bias = tf.Variable(tf.truncated_normal(([num_output_channels]), stddev=0.1), name=name+'_b', trainable=False)
     bias = tf.constant(0.1,shape=[num_output_channels],name=name+'_biases')
@@ -39,7 +39,7 @@ def create_detection_network_output_layer(name, input_data, filter_kernel_shape,
     conv_filter_shape = [filter_kernel_shape[0], filter_kernel_shape[1], num_input_channels, num_output_channels]
 
     # initialize weights anddd bias for the filter
-    weights = tf.Variable(tf.truncated_normal(conv_filter_shape, stddev=0.1), name=name+'_weights', trainable=True)
+    weights = tf.Variable(tf.truncated_normal(conv_filter_shape, stddev=0.1), name=name+'_weights', trainable=is_training)
 
     # bias = tf.Variable(tf.truncated_normal(([num_output_channels]), stddev=0.1), name=name+'_b', trainable=False)
     bias = tf.constant(0.1,shape=[num_output_channels],name=name+'_biases')
