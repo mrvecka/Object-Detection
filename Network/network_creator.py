@@ -27,7 +27,7 @@ class NetworkCreator():
         self.net_s_16 = None
         
         
-    def create_detection_network(self, input):
+    def create_model(self, input):
         
         # data = odn.normalize_input_data(input_batch, self.is_training)
         
