@@ -126,7 +126,75 @@ class Loader:
         # self.create_pgp_file()
         printProgressBar(amount_to_load, amount_to_load, prefix = 'Progress:', suffix = 'Complete', length = 50)
         print("Loaded: ",len(self.Data)," training files")
+        
+    def load_3d_data(self):
+        """
+        Load data from files on specified path.
+        Image file name is formated to be "000000" with specified extension
+        
+        Returns:
+            Data are stored to properties
+        """
+        assert self.image_path != '', 'Image path not set. Nothing to work with. Check config file.'
+        assert self.label_path != '', 'Label path not set. Nothing to work with. Check config file.'
+        assert self.calib_path != '', 'Calibration path not set. Nothing to work with. Check config file.'
+        print('Loading training files')
+        
+        image_pathss = []
+        label_paths = []
+        calib_paths = []
+        
+        # in img_files are absolut paths
+        img_files = fw.get_all_files(self.image_path, self.image_extension)
+        if self.amount == -1:
+            amount_to_load = len(img_files)
+        else:
+            amount_to_load = self.amount
+        
+        for i in range(len(img_files)):
+            file_ = img_files[i]
+            dot_index = file_.find('.')
+            file_name = file_[:dot_index]
+            
+            image_path = self.image_path + '\\' + file_
+            label_path = self.label_path + '\\' + file_name + '.txt'
+            if not fw.check_file_exists(label_path):
+                continue
+                    
+            calib_path = self.calib_path + '\\' + file_name + '.txt'
+            if not fw.check_file_exists(calib_path):
+                continue
+            
+            image, width, height = self._load_image(image_path)
+            if image is None:
+                continue
+                
+            # calibration
+            calib_matrix = self.load_calibration(calib_path)
+            if calib_matrix is None:
+                continue
+            
+            # label
+            labels = self._load_label(label_path, file_name, calib_matrix, width, height)
+            if labels is None:
+                continue
+        
+            data = DataModel()
+            data.image = image
+            data.image_path = image_path
+            data.image_name = file_
+            data.labels = labels
+            data.calib_matrix = calib_matrix
 
+            self.Data.append(data)
+            if len(self.Data) == amount_to_load:
+                break
+            
+            printProgressBar(len(self.Data), amount_to_load, prefix = 'Progress:', suffix = 'Complete', length = 50)
+            
+        # self.create_pgp_file()
+        printProgressBar(amount_to_load, amount_to_load, prefix = 'Progress:', suffix = 'Complete', length = 50)
+        print("Loaded: ",len(self.Data)," training files")
 
     def _load_image(self, image_path):
         """
@@ -177,6 +245,20 @@ class Loader:
         else:
             # if not exists try add 
             return self.load_one_label(label_path, file_name, calib_matrix, width, height)
+    
+    def _load_3d_label(self, label_path, file_name, calib_matrix, width, height):
+        """
+        Reads a label file to specific image.
+        Read only Car labels
+
+        Input:
+            label_path: Row-major stored label separated by spaces, first element is the label name
+            x: number of image
+        Returns:
+            LabelModel object
+        """
+        
+        return self.load_one_label(label_path, file_name, calib_matrix, width, height)
                 
     def load_calibration(self, calib_path):
         """
@@ -233,17 +315,6 @@ class Loader:
                 labels.append(label)
 
         return labels
-    
-    def convert_labels_to_bb3(self):
-        pass
-        # print('converting labels to bb3txt format')
-        # x = 0
-        # while x < self.amount:            
-        #     labels = self.load_one_label(x)
-        #     if labels != None and len(labels) != 0:
-        #         bb.write_bb3_to_file(labels)
-                
-        #     x+=1
      
     def load_one_label(self, label_path, file_name, calib_matrix, width, height):
 
@@ -281,12 +352,49 @@ class Loader:
                 bb3_label = bb.create_bb3txt_object(label, file_name, calib_matrix, width, height)
                 labels.append(bb3_label)
             
-            if len(labels) == 0:
-                empty = bb.create_empty_object(file_name)
-                labels.append(empty)
+        if len(labels) == 0:
+            empty = bb.create_empty_object(file_name)
+            labels.append(empty)
                         
-            bb.write_bb3_to_file(labels)
-            return labels
+        bb.write_bb3_to_file(labels)
+        return labels
+        
+    def load_one_3d_label(self, label_path, file_name, calib_matrix, width, height):
+
+        labels = []
+        with open(label_path, 'r') as infile_label:
+
+            for line in infile_label:
+                line = line.rstrip('\n')
+                data = line.split(' ')
+
+                # First element of the data is the label. We don't want to process 'Misc' and
+                # 'DontCare' labels
+                if data[0] != 'Car': continue
+
+                # We do not want to include objects, which are occluded or truncated too much
+                if (int(data[2]) >= 2 or float(data[1]) > 0.75): continue
+
+                label = LabelModel()
+                label.label = data[0]
+                label.truncated = int(float(data[1]))
+                label.occluded = int(float(data[2]))
+                label.alpha = float(data[3])
+                label.x_top_left = int(float(data[4]))
+                label.y_top_left = int(float(data[5]))
+                label.x_bottom_right = int(float(data[6]))
+                label.y_bottom_right = int(float(data[7]))
+                label.dim_width = float(data[8])
+                label.dim_height = float(data[9])
+                label.dim_length = float(data[10])
+                label.location_x = float(data[11])
+                label.location_y = float(data[12])
+                label.location_z = float(data[13])
+                label.rotation = float(data[14])
+
+                labels.append(label)
+            
+        return labels
             
     def load_specific_label(self, file_name):
         

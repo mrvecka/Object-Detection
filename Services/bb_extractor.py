@@ -5,9 +5,15 @@ import cv2
 
 import Services.geometry as geom
 
-def extract_bounding_box(result, label, calib_matrix, img_path, scale, ideal):
+
+# heights 2 min: 13.929970656746294  max: 43.579670424479914
+# heights 4 min: 16.130611532478117  max: 70.0337466467806
+# heights 8 min: 16.704889188405836  max: 131.2425210736741
+# heights 16 min: 23.80433457673601  max: 236.7748641507022
+
+def extract_bounding_box(result, labels, calib_matrix, img_path, scale, ideal):
     
-    print("EXTRACTING BOUNDING BOXES STARTED ON SCALE ", scale)
+    print("BOUNDING BOXES EXTRACTION STARTED ON SCALE ", scale)
     prob = result[0,:,:,0]
     image = np.asmatrix(prob)
     im_max = image.max()
@@ -32,81 +38,112 @@ def extract_bounding_box(result, label, calib_matrix, img_path, scale, ideal):
                 rbl_x = maps[5][y,x]
                 rbl_y = maps[6][y,x]
                 ftl_y = maps[7][y,x]
-                object_index = maps[8][y,x]
-
-                data = np.asarray([[fbl_x, fbr_x, rbl_x],
-                [fbl_y, fbr_y, rbl_y],
-                [1, 1, 1]])
-                # calib_matrix = np.matmul(calib_matrix,rotation_matrix) 
-                # world_space = image_to_world_space(image_space_homo[:,0], calib_matrix, [0,1,0], 0)
-                w_rbl = geom.image_to_world_space(data[:,2], calib_matrix, [0,1,0], 0)
-                w_fbl = geom.image_to_world_space(data[:,0], calib_matrix, [0,1,0], 0)
-                w_fbr = geom.image_to_world_space(data[:,1], calib_matrix, [0,1,0], 0)
-                w_rbr = w_fbr + (w_rbl - w_fbl)
-                front_normal = w_rbl - w_fbl
-                front_normal = np.reshape(front_normal, (1,3))
-                front_d = -np.dot(front_normal, w_fbl)
-                w_ftl = geom.image_to_world_space(np.reshape([data[0,0],ftl_y,1],(3,1)), calib_matrix, front_normal, front_d[0,0])
-                bottom_to_top = w_ftl - np.reshape(w_fbl,(3,1))
-
-                # now we have reconstructed bottom rectangle but it is paralelogram
-
-                # center of parallelogram
-                mass_center = (w_fbl + w_rbr) / 2.0
-                # half diagonals
-                d1 = w_fbl - mass_center
-                length_d1 = np.linalg.norm(d1)
-
-                d2 = w_fbr - mass_center
-                length_d2 = np.linalg.norm(d2)
-
-                delta = abs(length_d1 - length_d2) / 2.0
-
-                d1_new = []
-                d2_new = []
-                if length_d1 > length_d2:
-                    # first diagonal is shorter
-                    d1_new = d1 * (1 - delta / length_d1)
-                    d2_new = d2 * (1 + delta / length_d2)
-                else:
-                    d1_new = d1 * (1 + delta / length_d1)
-                    d2_new = d2 * (1 - delta / length_d2)
-
-                w_fbl = np.reshape(mass_center + d1_new, (3,1))
-                w_fbr = np.reshape(mass_center + d2_new, (3,1))
-                w_rbl = np.reshape(mass_center - d2_new, (3,1))
-                w_rbr = np.reshape(mass_center - d1_new, (3,1))
-
-                w_ftl = np.reshape(w_fbl, (3,1)) + bottom_to_top
-                w_ftr = np.reshape(w_fbr, (3,1)) + bottom_to_top
-                w_rtl = np.reshape(w_rbl, (3,1)) + bottom_to_top
-                w_rtr = np.reshape(w_rbr, (3,1)) + bottom_to_top
-
-
-                data = np.asarray([w_fbl, w_fbr, w_rbl, w_rbr, w_ftl, w_ftr, w_rtl, w_rtr])
-                transposed = np.squeeze(data.transpose())
-
-                data = np.ones((4,8))
-                data[0:3,0:8] = transposed
-                points = geom.world_space_to_image(data, calib_matrix)
-
-                box = BoxModel()
-                box.fbl = (int(points[0,0]), int(points[1,0]))
-                box.fbr = (int(points[0,1]), int(points[1,1]))
-                box.rbl = (int(points[0,2]), int(points[1,2]))
-                box.rbr = (int(points[0,3]), int(points[1,3]))
-                box.ftl = (int(points[0,4]), int(points[1,4]))
-                box.ftr = (int(points[0,5]), int(points[1,5]))
-                box.rtl = (int(points[0,6]), int(points[1,6]))
-                box.rtr = (int(points[0,7]), int(points[1,7]))
+                
+                if scale == 2:
+                    dist = np.abs(fbl_y - ftl_y)
+                    if dist < 18.92 or dist > 30.57:
+                        continue
+                if scale == 4:
+                    dist = np.abs(fbl_y - ftl_y)
+                    if dist < 25 or dist > 50:
+                        continue
+                if scale == 8:
+                    dist = np.abs(fbl_y - ftl_y)
+                    if dist < 45.33 or dist > 131.24:
+                        continue
+                if scale == 16:
+                    dist = np.abs(fbl_y - ftl_y)
+                    if dist < 50.04 or dist > 236.77:
+                        continue                                                           
+                
+                box = run_projection(fbl_x, fbl_y, fbr_x, fbr_y, rbl_x, rbl_y, ftl_y, calib_matrix)
+                box.object_index = maps[8][y,x]
                 box.confidence = maps[0][y,x]
-                box.object_index = object_index
                 
                 image_model.boxes.append(box)
-                
+              
+    for label in labels:
+        box = run_projection(label[0], label[1], label[2], label[3], label[4], label[5], label[6], calib_matrix)
+        box.object_index = 1000
+        box.confidence = 100
+        
+        image_model.boxes.append(box)
+      
     print("EXTRACTION FINISHED!")
+    print("TESTING ACCURACY")
+    print("Not yet")
+    # zistit ako naparovat boxi z outputu na boxi z labelu
     return image_model
-                
+    
+def run_projection(fbl_x, fbl_y, fbr_x, fbr_y, rbl_x, rbl_y, ftl_y, calib_matrix):
+    data = np.asarray([[fbl_x, fbr_x, rbl_x],
+    [fbl_y, fbr_y, rbl_y],
+    [1, 1, 1]])
+    # calib_matrix = np.matmul(calib_matrix,rotation_matrix) 
+    # world_space = image_to_world_space(image_space_homo[:,0], calib_matrix, [0,1,0], 0)
+    w_rbl = geom.image_to_world_space(data[:,2], calib_matrix, [0,1,0], 0)
+    w_fbl = geom.image_to_world_space(data[:,0], calib_matrix, [0,1,0], 0)
+    w_fbr = geom.image_to_world_space(data[:,1], calib_matrix, [0,1,0], 0)
+    w_rbr = w_fbr + (w_rbl - w_fbl)
+    front_normal = w_rbl - w_fbl
+    front_normal = np.reshape(front_normal, (1,3))
+    front_d = -np.dot(front_normal, w_fbl)
+    w_ftl = geom.image_to_world_space(np.reshape([data[0,0],ftl_y,1],(3,1)), calib_matrix, front_normal, front_d[0,0])
+    bottom_to_top = w_ftl - np.reshape(w_fbl,(3,1))
+
+    # now we have reconstructed bottom rectangle but it is paralelogram
+
+    # center of parallelogram
+    mass_center = (w_fbl + w_rbr) / 2.0
+    # half diagonals
+    d1 = w_fbl - mass_center
+    length_d1 = np.linalg.norm(d1)
+
+    d2 = w_fbr - mass_center
+    length_d2 = np.linalg.norm(d2)
+
+    delta = abs(length_d1 - length_d2) / 2.0
+
+    d1_new = []
+    d2_new = []
+    if length_d1 > length_d2:
+        # first diagonal is shorter
+        d1_new = d1 * (1 - delta / length_d1)
+        d2_new = d2 * (1 + delta / length_d2)
+    else:
+        d1_new = d1 * (1 + delta / length_d1)
+        d2_new = d2 * (1 - delta / length_d2)
+
+    w_fbl = np.reshape(mass_center + d1_new, (3,1))
+    w_fbr = np.reshape(mass_center + d2_new, (3,1))
+    w_rbl = np.reshape(mass_center - d2_new, (3,1))
+    w_rbr = np.reshape(mass_center - d1_new, (3,1))
+
+    w_ftl = np.reshape(w_fbl, (3,1)) + bottom_to_top
+    w_ftr = np.reshape(w_fbr, (3,1)) + bottom_to_top
+    w_rtl = np.reshape(w_rbl, (3,1)) + bottom_to_top
+    w_rtr = np.reshape(w_rbr, (3,1)) + bottom_to_top
+
+
+    data = np.asarray([w_fbl, w_fbr, w_rbl, w_rbr, w_ftl, w_ftr, w_rtl, w_rtr])
+    transposed = np.squeeze(data.transpose())
+
+    data = np.ones((4,8))
+    data[0:3,0:8] = transposed
+    points = geom.world_space_to_image(data, calib_matrix)
+
+    box = BoxModel()
+    box.fbl = (int(points[0,0]), int(points[1,0]))
+    box.fbr = (int(points[0,1]), int(points[1,1]))
+    box.rbl = (int(points[0,2]), int(points[1,2]))
+    box.rbr = (int(points[0,3]), int(points[1,3]))
+    box.ftl = (int(points[0,4]), int(points[1,4]))
+    box.ftr = (int(points[0,5]), int(points[1,5]))
+    box.rtl = (int(points[0,6]), int(points[1,6]))
+    box.rtr = (int(points[0,7]), int(points[1,7]))
+    
+    return box
+            
 def threshold_result(maps, threshold):
     
     for y in range(len(maps)):

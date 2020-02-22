@@ -14,7 +14,7 @@ def start_test():
 
     loader = load.Loader()
     # loader.load_data()
-    loader.load_specific_label("000010")
+    loader.load_specific_label("000003")
     # loader.load_specific_label("001067")
     new_saver = tf.train.import_meta_graph(cfg.MODEL_PATH + '.meta', clear_devices=True)
     graph = tf.get_default_graph()

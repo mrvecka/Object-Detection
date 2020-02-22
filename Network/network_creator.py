@@ -319,10 +319,10 @@ class NetworkCreator():
         var_scale_8 = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='scale_8')
         var_scale_16 = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='scale_16')
         
-        optimizer_2 = tf.train.AdamOptimizer(name="adam_optimalizer_2")
-        optimizer_4 = tf.train.AdamOptimizer(name="adam_optimalizer_4")
-        optimizer_8 = tf.train.AdamOptimizer(name="adam_optimalizer_8")
-        optimizer_16 = tf.train.AdamOptimizer(name="adam_optimalizer_16")
+        optimizer_2 = tf.train.AdamOptimizer(name="adam_optimalizer_2",learning_rate=self.learning)
+        optimizer_4 = tf.train.AdamOptimizer(name="adam_optimalizer_4",learning_rate=self.learning)
+        optimizer_8 = tf.train.AdamOptimizer(name="adam_optimalizer_8",learning_rate=self.learning)
+        optimizer_16 = tf.train.AdamOptimizer(name="adam_optimalizer_16",learning_rate=self.learning)
         grads = tf.gradients(loss,var_scale_2 + var_scale_4 + var_scale_8 + var_scale_16)        
 
         grads_2 = grads[:len(var_scale_2)]
@@ -345,7 +345,7 @@ class NetworkCreator():
         
         image_placeholder = tf.placeholder(tf.float32, [None, cfg.IMG_HEIGHT, cfg.IMG_WIDTH, cfg.IMG_CHANNELS],name="input_image_placeholder")
         labels_placeholder = tf.placeholder(tf.float32, [None, None, 10], name="input_label_placeholder")
-        self.learning_rate = tf.placeholder(tf.float32,(),name="input_learning_rate")
+        self.learning = tf.placeholder(tf.float32,(),name="input_learning_rate")
         #self.is_training = tf.placeholder(tf.bool, name='input_is_training_placeholder')
         #self.is_training = tf.placeholder_with_default(cfg.IS_TRAINING, (), name='input_is_training_placeholder')  
 
@@ -368,29 +368,35 @@ class NetworkCreator():
             tf.train.write_graph(session.graph_def,r"C:\Users\Lukas\Documents\Object detection\model",'model.pbtxt')
             writer = tf.summary.FileWriter(r"C:\Users\Lukas\Documents\Object detection\model", session.graph)
             learning = cfg.LEARNING_RATE
+            update_edge = 0.1
             print("Learning rate for AdamOtimizer", learning)
             while test_acc > cfg.MAX_ERROR:
                 for i in range(iterations):
                     image_batch, labels_batch, = loader.get_train_data(self.BatchSize)                    
                     session.run(optimize, 
-                                    feed_dict={image_placeholder: image_batch, labels_placeholder: labels_batch, self.is_training: True, self.learning_rate: learning})
+                                    feed_dict={image_placeholder: image_batch, labels_placeholder: labels_batch, self.is_training: True, self.learning: learning})
 
                 image_batch, labels_batch = loader.get_train_data(self.BatchSize)
                 test_acc = session.run(loss, 
-                                feed_dict={image_placeholder: image_batch, labels_placeholder: labels_batch, self.is_training: False, self.learning_rate: learning})
+                                feed_dict={image_placeholder: image_batch, labels_placeholder: labels_batch, self.is_training: False, self.learning: learning})
                 
                 print("Epoch:", (epoch), "test error: {:.5f}".format(test_acc))
                 epoch += 1
 
                 if math.isnan(test_acc):
                     s_2, s_4, s_8, s_16 = session.run([self.net_s_2,self.net_s_4,self.net_s_8,self.net_s_16], 
-                                feed_dict={image_placeholder: image_batch[0], labels_placeholder: labels_batch[0], self.is_training: False, self.learning_rate: learning})
+                                feed_dict={image_placeholder: image_batch[0], labels_placeholder: labels_batch[0], self.is_training: False, self.learning: learning})
                     np.save(r"C:\Users\Lukas\Documents\Object detection\test\train_s_2.txt",s_2)
                     np.save(r"C:\Users\Lukas\Documents\Object detection\test\train_s_4.txt",s_4)
                     np.save(r"C:\Users\Lukas\Documents\Object detection\test\train_s_8.txt",s_8)
                     np.save(r"C:\Users\Lukas\Documents\Object detection\test\train_s_16.txt",s_16)
                     break
                 
+                if test_acc < update_edge:
+                    learning = learning / 10
+                    update_edge = update_edge / 10
+                    print("Learning rate updated to", learning)
+
                 # if epoch % 20 == 0:
                 #     learning = learning / 10
                 #     print("Learning rate updated to", learning)
