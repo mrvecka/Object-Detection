@@ -32,7 +32,7 @@ IMG_CHANNELS = 3 # based on channel number, image will be loaded colored or gray
 DEVICE_NAME = "/gpu:0"
 LEARNING_RATE = 0.001
 BATCH_SIZE = 8
-MAX_ERROR = 0.001
+MAX_ERROR = 0.0001
 ITERATIONS = 500
 WEIGHT_FACTOR = 2.0
 
