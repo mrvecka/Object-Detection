@@ -13,7 +13,7 @@ TRAINING_SPLIT = 70
 
 # amount of data from dataset which will be loaded
 # -1 for all data
-DATA_AMOUNT = 4
+DATA_AMOUNT = 2000
 
 IMAGE_EXTENSION = 'png'
 
@@ -32,6 +32,7 @@ IMG_CHANNELS = 3 # based on channel number, image will be loaded colored or gray
 DEVICE_NAME = "/gpu:0"
 LEARNING_RATE = 0.001
 <<<<<<< HEAD
+<<<<<<< HEAD
 BATCH_SIZE = 8
 MAX_ERROR = 0.0001
 ITERATIONS = 500
@@ -40,6 +41,11 @@ BATCH_SIZE = 4
 MAX_ERROR = 0.001
 ITERATIONS = 100
 >>>>>>> 4c3411ae0b0e9084006a2522612b6d7783c6ce76
+=======
+BATCH_SIZE = 8
+MAX_ERROR = 0.001
+ITERATIONS = 500
+>>>>>>> parent of 4c3411a... base training model converted to TF 2.0
 WEIGHT_FACTOR = 2.0
 
 # NON-MAXIMA SUPPRESSION

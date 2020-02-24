@@ -1,34 +1,158 @@
+from __future__ import print_function
 import tensorflow as tf
+import Network.object_detection_network as odn
 import config as cfg
 import os
 import cv2
 import numpy as np
+import Services.freeze_graph as freeze
 import Services.helper as help
+from Services.lr_queue import LRQueue
 import math
 
-class NetworkLoss():
-    def __init__(self,batch,radius,circle_ratio, boundaries, scale):
-        self.radius = radius
-        self.circle_ratio = circle_ratio
-        self.boundaries = boundaries
-        self.scale = scale
-        self.batch_size = batch
-        self.weight_factor = cfg.WEIGHT_FACTOR
-    
-    #@tf.function
-    def compute_loss(self,images,labels):
-        errors = []
-        for i in range(self.batch_size):          
-            current_img = images[i]
-            current_lbl = labels[i]
-            img_error = self.scan_image_function(current_img, current_lbl)
-            errors.append(img_error)
+tf.logging.set_verbosity(tf.logging.ERROR)
 
-        errors_as_tensor = tf.convert_to_tensor(errors,dtype=tf.float32)
-        loss = tf.reduce_sum(errors_as_tensor)
-        return [loss]
+class NetworkCreator():
     
-    def scan_image_function(self, image, label):
+    def __init__(self,):
+        self.device = cfg.DEVICE_NAME
+        self.is_training = tf.placeholder_with_default(cfg.IS_TRAINING, (), name='input_is_training_placeholder')  
+        # self.is_training = True
+        self.BatchSize = cfg.BATCH_SIZE
+        self.weight_factor = cfg.WEIGHT_FACTOR
+        
+        self.net_s_2 = None
+        self.net_s_4 = None
+        self.net_s_8 = None
+        self.net_s_16 = None
+        
+        
+    def create_detection_network(self, input):
+        
+        # data = odn.normalize_input_data(input_batch, self.is_training)
+        
+        #create actual network
+        net = odn.create_detection_network_layer('layer1', input, [3, 3], 3, 64, 1, 1, self.is_training)
+        net = odn.normalization_layer(net, self.is_training)
+
+        net = odn.create_detection_network_layer('layer2', net, [3, 3], 64, 64, 2, 2, self.is_training)
+        net = odn.normalization_layer(net, self.is_training)
+        
+        net = odn.create_detection_network_layer('layer3', net, [3,3], 64, 128, 1, 1, self.is_training)
+        net = odn.normalization_layer(net, self.is_training)
+        net = odn.create_detection_network_layer('layer4', net, [3,3], 128, 128, 1, 1, self.is_training)
+        net = odn.normalization_layer(net, self.is_training)
+        net = odn.create_detection_network_layer('layer5', net, [3,3], 128, 128, 3, 1, self.is_training)
+        net = odn.normalization_layer(net, self.is_training)
+        net = odn.create_detection_network_layer('layer6', net, [3,3], 128, 128, 6, 1, self.is_training)
+        
+        # first output
+        net = odn.normalization_layer(net, self.is_training)
+        self.net_s_2 = odn.create_detection_network_output_layer('output2', net, [1, 1], 128, 8, 1, 1, self.is_training)
+                
+        net = odn.create_detection_network_pool_layer(net, [2,2],'layer7')
+        
+        net = odn.create_detection_network_layer('layer8', net, [3,3], 128, 256, 1, 1, self.is_training)
+        net = odn.normalization_layer(net, self.is_training)
+        net = odn.create_detection_network_layer('layer9', net, [3,3], 256, 256, 1, 1, self.is_training)
+        net = odn.normalization_layer(net, self.is_training)
+        net = odn.create_detection_network_layer('layer10', net, [3,3], 256, 256, 3, 1, self.is_training)
+        net = odn.normalization_layer(net, self.is_training)
+
+        self.net_s_4 = odn.create_detection_network_output_layer('output4', net, [1, 1], 256, 8, 1, 1, self.is_training)
+
+        
+        net = odn.create_detection_network_pool_layer(net, [2,2], 'layer11')
+        
+        net = odn.create_detection_network_layer('layer12', net, [3,3], 256, 512, 1, 1, self.is_training)
+        net = odn.normalization_layer(net, self.is_training)
+
+        net = odn.create_detection_network_layer('layer13', net, [3,3], 512, 512, 1, 1, self.is_training)
+        net = odn.normalization_layer(net, self.is_training)
+
+        net = odn.create_detection_network_layer('layer14', net, [3,3], 512, 512, 3, 1, self.is_training)
+        net = odn.normalization_layer(net, self.is_training)
+
+        self.net_s_8 = odn.create_detection_network_output_layer('output8', net, [1, 1], 512, 8, 1, 1, self.is_training)
+
+
+        net = odn.create_detection_network_pool_layer(net , [2,2], 'layer15')
+
+        net = odn.create_detection_network_layer('layer16', net, [3,3],512, 512, 1, 1, self.is_training)
+        net = odn.normalization_layer(net, self.is_training)
+
+        net = odn.create_detection_network_layer('layer17', net, [3,3], 512, 512, 1, 1, self.is_training)
+        net = odn.normalization_layer(net, self.is_training)
+
+        net = odn.create_detection_network_layer('layer18', net, [3,3], 512, 512, 3, 1, self.is_training)
+        net = odn.normalization_layer(net, self.is_training)
+        
+        self.net_s_16 = odn.create_detection_network_output_layer('output16', net, [1, 1], 512, 8, 1, 1, self.is_training)
+
+    def create_detection_network_2(self,input):
+        
+        
+        net = odn.normalization_layer(input, self.is_training)
+        with tf.variable_scope("scale_2"):
+            net = tf.layers.conv2d(net,64,[3,3],(1,1),"SAME",dilation_rate=(1,1),activation="relu",kernel_initializer=tf.contrib.layers.xavier_initializer(),use_bias=True,trainable=True,name="layer1")
+            net = tf.layers.conv2d(net,64,[3,3],(2,2),"SAME",dilation_rate=(1,1),activation="relu",kernel_initializer=tf.contrib.layers.xavier_initializer(),use_bias=True,trainable=True,name="layer2")
+            #net = odn.normalization_layer(net, self.is_training)
+            net = tf.layers.conv2d(net,128,[3,3],(1,1),"SAME",dilation_rate=(1,1),activation="relu",kernel_initializer=tf.contrib.layers.xavier_initializer(),use_bias=True,trainable=True,name="layer3")
+            #net = odn.normalization_layer(net, self.is_training)
+            net = tf.layers.conv2d(net,128,[3,3],(1,1),"SAME",dilation_rate=(1,1),activation="relu",kernel_initializer=tf.contrib.layers.xavier_initializer(),use_bias=True,trainable=True,name="layer4")
+            #net = odn.normalization_layer(net, self.is_training)
+            net = tf.layers.conv2d(net,128,[3,3],(1,1),"SAME",dilation_rate=(3,3),activation="relu",kernel_initializer=tf.contrib.layers.xavier_initializer(),use_bias=True,trainable=True,name="layer5")
+            #net = odn.normalization_layer(net, self.is_training)
+            net = tf.layers.conv2d(net,128,[3,3],(1,1),"SAME",dilation_rate=(6,6),activation="relu",kernel_initializer=tf.contrib.layers.xavier_initializer(),use_bias=True,trainable=True,name="layer6")
+            #net = odn.normalization_layer(net, self.is_training)
+            # first output
+            self.net_s_2 = tf.layers.conv2d(net,8,[1,1],(1,1),"SAME",dilation_rate=(1,1),activation=None,kernel_initializer=tf.contrib.layers.xavier_initializer(),use_bias=False,trainable=True,name="output2")
+        #net = odn.normalization_layer(net, self.is_training)
+        
+        net = tf.layers.max_pooling2d(net,(2,2),(2,2),"SAME",name="layer7")
+        # net = tf.layers.dropout(net, 0.5) 
+        
+        with tf.variable_scope("scale_4"):
+            net = tf.layers.conv2d(net,256,[3,3],(1,1),"SAME",dilation_rate=(1,1),activation="relu",kernel_initializer=tf.contrib.layers.xavier_initializer(),use_bias=True,trainable=True,name="layer8")
+            #net = odn.normalization_layer(net, self.is_training)
+            net = tf.layers.conv2d(net,256,[3,3],(1,1),"SAME",dilation_rate=(1,1),activation="relu",kernel_initializer=tf.contrib.layers.xavier_initializer(),use_bias=True,trainable=True,name="layer9")
+            #net = odn.normalization_layer(net, self.is_training)
+            net = tf.layers.conv2d(net,256,[3,3],(1,1),"SAME",dilation_rate=(3,3),activation="relu",kernel_initializer=tf.contrib.layers.xavier_initializer(),use_bias=True,trainable=True,name="layer10")
+            #net = odn.normalization_layer(net, self.is_training)
+
+            self.net_s_4 = tf.layers.conv2d(net,8,[1,1],(1,1),"SAME",dilation_rate=(1,1),activation=None,kernel_initializer=tf.contrib.layers.xavier_initializer(),use_bias=False,trainable=True,name="output4")
+        #net = odn.normalization_layer(net, self.is_training)
+
+        net = tf.layers.max_pooling2d(net,(2,2),(2,2),"SAME",name="layer11")
+        # net = tf.layers.dropout(net, 0.5) 
+
+        with tf.variable_scope("scale_8"):
+            net = tf.layers.conv2d(net,512,[3,3],(1,1),"SAME",dilation_rate=(1,1),activation="relu",kernel_initializer=tf.contrib.layers.xavier_initializer(),use_bias=True,trainable=True,name="layer12")
+            #net = odn.normalization_layer(net, self.is_training)
+            net = tf.layers.conv2d(net,512,[3,3],(1,1),"SAME",dilation_rate=(1,1),activation="relu",kernel_initializer=tf.contrib.layers.xavier_initializer(),use_bias=True,trainable=True,name="layer13")
+            #net = odn.normalization_layer(net, self.is_training)
+            net = tf.layers.conv2d(net,512,[3,3],(1,1),"SAME",dilation_rate=(3,3),activation="relu",kernel_initializer=tf.contrib.layers.xavier_initializer(),use_bias=True,trainable=True,name="layer14")
+            #net = odn.normalization_layer(net, self.is_training)
+
+                    
+            self.net_s_8 = tf.layers.conv2d(net,8,[1,1],(1,1),"SAME",dilation_rate=(1,1),activation=None,kernel_initializer=tf.contrib.layers.xavier_initializer(),use_bias=False,trainable=True,name="output8")
+        #net = odn.normalization_layer(net, self.is_training)
+
+        net = tf.layers.max_pooling2d(net,(2,2),(2,2),"SAME",name="layer15")
+        # net = tf.layers.dropout(net, 0.5) 
+        
+        
+        with tf.variable_scope("scale_16"):
+            net = tf.layers.conv2d(net,512,[3,3],(1,1),"SAME",dilation_rate=(1,1),activation="relu",kernel_initializer=tf.contrib.layers.xavier_initializer(),use_bias=True,trainable=True,name="layer16",)
+            #net = odn.normalization_layer(net, self.is_training)
+            net = tf.layers.conv2d(net,512,[3,3],(1,1),"SAME",dilation_rate=(1,1),activation="relu",kernel_initializer=tf.contrib.layers.xavier_initializer(),use_bias=True,trainable=True,name="layer17")
+            #net = odn.normalization_layer(net, self.is_training)
+            net = tf.layers.conv2d(net,512,[3,3],(1,1),"SAME",dilation_rate=(3,3),activation="relu",kernel_initializer=tf.contrib.layers.xavier_initializer(),use_bias=True,trainable=True,name="layer18")
+            #net = odn.normalization_layer(net, self.is_training)
+
+            self.net_s_16 = tf.layers.conv2d(net,8,[1,1],(1,1),"SAME",dilation_rate=(1,1),activation=None,kernel_initializer=tf.contrib.layers.xavier_initializer(),use_bias=False,trainable=True,name="output16")
+
+    def scan_image_function(self, image, label, radius,circle_ratio, boundaries, scale):
         
         # ground_truth = self.create_target_response_map(label, label_size, 2)
         
@@ -36,7 +160,7 @@ class NetworkLoss():
         height = image.shape.dims[0].value
         channels = image.shape.dims[2].value
         
-        target = tf.py_function(self.create_target_response_map, [label, width, height], [tf.float32])
+        target = tf.py_func(self.create_target_response_map, [label, width, height, channels, radius,circle_ratio, boundaries, scale], [tf.float32])
         # assert target.shape != shaped_output.shape, "While computing loss of NN shape of ground truth must be same as shape of network result"
         
         target = tf.reshape(target,(channels,height,width))        
@@ -46,15 +170,17 @@ class NetworkLoss():
         
         # count of positive pixels
         
-        N_p = tf.math.count_nonzero(image[:, :, 0])      
+        N_p = tf.math.count_nonzero(image[:, :, 0])
+
+        
         second_error = 0
         error = 0.0
                    
         # get array of weight factor with the same shape as target 
-        initial = tf.constant(1,dtype=tf.float32, shape=(height,width))
+        initial = tf.Variable(tf.ones_like(target[0,:, :]),dtype=tf.float32, name="initial")
         tmp_initial = initial
         condition = tf.greater(target[0,:, :], tf.constant(0,dtype=tf.float32),name="greater")
-        weight_factor_array = tf.add(initial, tf.where(condition, (tmp_initial + self.weight_factor - 1), tmp_initial, name="where_condition"), name="assign" )
+        weight_factor_array = initial.assign( tf.where(condition, (tmp_initial + self.weight_factor - 1), tmp_initial, name="where_condition"), name="assign" )
 
         error = tf.reduce_sum(tf.multiply(weight_factor_array, tf.square(tf.subtract(target[0,:, :], image[:, :, 0]))))
         for c in range(1, channels):
@@ -64,32 +190,35 @@ class NetworkLoss():
                                           tf.square(tf.subtract(target[c,:, :], image[:, :, c])))))
         
                     
-        error = (1/(2*N))*error     
-        tmp = 1/ (3 * N_p * (channels -1))    
+        error = (1/(2*N))*error
+        
+        tmp = 1/ (3 * N_p * (channels -1))
+        
         error += tf.cast(tmp, tf.float32) * second_error
-       
+        
+        
         return error
-           
-    def GetObjectBounds(self):
-        ideal_size = (2.0 * self.radius + 1.0) / self.circle_ratio * self.scale
+    
+    def GetObjectBounds(self, r, cr, bo, scale):
+        ideal_size = (2 * r + 1) / cr * scale
         # bound above
-        ext_above = ((1.0 - self.boundaries) * ideal_size) / 2.0 + self.boundaries * ideal_size
+        ext_above = ((1 - bo) * ideal_size) / 2 + bo * ideal_size
         bound_above = ideal_size + ext_above
         
         # bound below
-        diff = ideal_size / 2.0
-        ext_below = ((1 - self.boundaries)* diff) / 2.0 + self.boundaries * diff
+        diff = ideal_size / 2
+        ext_below = ((1 - bo)* diff) /2 + bo * diff
         bound_below = ideal_size - ext_below
         
         return bound_above, bound_below, ideal_size
     
-    def create_target_response_map(self, labels, width, height):
+    def create_target_response_map(self, labels, width, height, channels, r, circle_ratio, boundaries, scale):
                 
         # maps => array of shape (channels, orig_height, orig_width) 
         maps = cv2.split(np.zeros((height,width,8)))
         # self.index = 0
         # result = tf.scan(self.scan_label_function, labels, initializer=0) 
-        bound_above, bound_below, ideal = self.GetObjectBounds()
+        bound_above, bound_below, ideal = self.GetObjectBounds(r,circle_ratio,boundaries,scale)
         for i in range(len(labels)):            
             label = labels[i]
             if label[0] == -1:
@@ -99,220 +228,89 @@ class NetworkLoss():
             
             #size = self.get_size_of_bounding_box(labels)
             if label[9] >= bound_below and label[9] <= bound_above:
-                x = int(label[7] / self.scale)
-                y = int(label[8] / self.scale)
+                x = int(label[7] / scale)
+                y = int(label[8] / scale)
                 
-                scaling_ratio = 1.0 / self.scale
+                scaling_ratio = 1.0 / scale
                 # print((self.orig_height,self.orig_width))
                 #radius = ((circle_ration / scale) * szie ) - 1
                 
-                cv2.circle(maps[0], ( x, y ), int(self.radius), 1, -1)
+                cv2.circle(maps[0], ( x, y ), int(r), 1, -1)
                 cv2.GaussianBlur(maps[0], (3, 3), 100)
 
                 # x_acc = x * scaling_ratio
                 # y_acc = y * scaling_ratio
                 for c in range(1,8):
                     
-                    for l in range(-self.radius,self.radius,1):
-                        for j in range(-self.radius,self.radius,1):
+                    for l in range(-r,r,1):
+                        for j in range(-r,r,1):
                             xp = x + j
                             yp = y + l
                             
                             if xp >= 0 and xp < width and yp >= 0 and yp < height:
                                 if maps[0][yp][xp] > 0.0:
                                     if c ==1 or c == 3 or c == 5:
-                                        maps[c][yp][xp] = 0.5 + (label[c-1] - x - j * self.scale) / ideal
+                                        maps[c][yp][xp] = 0.5 + (label[c-1] - x - j * scale) / ideal
                                     elif c == 2 or c == 4 or c == 6 or c == 7:
-                                        maps[c][yp][xp] = 0.5 + (label[c-1] - y - l * self.scale) / ideal
+                                        maps[c][yp][xp] = 0.5 + (label[c-1] - y - l * scale) / ideal
         
         return np.asarray(maps,dtype=np.float32)
 
-class NetworkCreator():
-    
-    def __init__(self):
-        self.device = cfg.DEVICE_NAME
-        # self.is_training = tf.placeholder_with_default(cfg.IS_TRAINING, (), name='input_is_training_placeholder')  
-        # self.is_training = True
-        self.BatchSize = cfg.BATCH_SIZE
-        self.weight_factor = cfg.WEIGHT_FACTOR
-        self.initializer = tf.initializers.glorot_uniform()
-        self.net_s_2 = None
-        self.net_s_4 = None
-        self.net_s_8 = None
-        self.net_s_16 = None
-
-    def conv2d(self, inputs , filters , stride_size, dilation, name, activation=True ):
-        out = tf.nn.conv2d( inputs , filters , strides=[ 1 , stride_size , stride_size , 1 ] ,dilations=[1, dilation, dilation, 1], padding="SAME", name=name+'_convolution' ) 
-        if activation:
-            return tf.nn.relu( out , name=name+'_relu_activation') 
-        else:
-            return out
-        
-    def maxpool(self, inputs , pool_size , stride_size, name ):
-        return tf.nn.max_pool2d( inputs , ksize=[ 1 , pool_size , pool_size , 1 ] , padding='SAME' , strides=[ 1 , stride_size , stride_size , 1 ], name=name+'pool' )
-
-    def get_weight(self, shape , name ):
-        return tf.Variable( self.initializer( shape ) , name=name , trainable=True , dtype=tf.float32 )
-
-    def init_weights(self):
-        shapes_2 = [
-            [3,3,3,64],
-            [3,3,64,64],
-            [3,3,64,128],
-            [3,3,128,128],
-            [3,3,128,128],
-            [3,3,128,128],
-            [1,1,128,8]
-        ]
-        shapes_4 = [
-            [3,3,128,256],
-            [3,3,256,256],
-            [3,3,256,256],
-            [1,1,256,8]
-        ]
-        shapes_8 = [
-            [3,3,256,512],
-            [3,3,512,512],
-            [3,3,512,512],
-            [1,1,512,8]
-        ]
-        shapes_16 = [
-            [3,3,512,512],
-            [3,3,512,512],
-            [3,3,512,512],
-            [1,1,512,8]
-        ]
-        
-        count = 0
-        self.weights_2 = []
-        for i in range( len( shapes_2 ) ):
-            self.weights_2.append( self.get_weight( shapes_2[ i ] , 'weight{}'.format( count ) ) )
-            count += 1
-            
-        self.weights_4 = []
-        for i in range( len( shapes_4 ) ):
-            self.weights_4.append( self.get_weight( shapes_4[ i ] , 'weight{}'.format( count ) ) )
-            count += 1
-            
-        self.weights_8 = []
-        for i in range( len( shapes_8 ) ):
-            self.weights_8.append( self.get_weight( shapes_8[ i ] , 'weight{}'.format( count ) ) )
-            count += 1
-            
-        self.weights_16 = []
-        for i in range( len( shapes_16 ) ):
-            self.weights_16.append( self.get_weight( shapes_16[ i ] , 'weight{}'.format( count ) ) )
-            count += 1
-            
-    def batch_norm_wrapper(self, inputs, is_training, decay = 0.999):
-        scale = tf.Variable(tf.ones([inputs.shape[-1]]))
-        beta = tf.Variable(tf.zeros([inputs.shape[-1]]))
-        pop_mean = tf.Variable(tf.zeros([inputs.shape[-1]]), trainable=False)
-        pop_var = tf.Variable(tf.ones([inputs.shape[-1]]), trainable=False)
-
-        if is_training:
-            batch_mean, batch_var = tf.nn.moments(inputs,[0,1,2])
-            train_mean = pop_mean.assign(pop_mean * decay + batch_mean * (1 - decay))
-            train_var = pop_var.assign(pop_var * decay + batch_var * (1 - decay))
-            with tf.control_dependencies([train_mean, train_var]):
-                return tf.nn.batch_normalization(inputs,
-                    batch_mean, batch_var, beta, scale, 1e-3)
-        else:
-            return tf.nn.batch_normalization(inputs,
-                pop_mean, pop_var, beta, scale, 1e-3)
-        
-        # with tf.name_scope('bn'):
-        #     beta = tf.Variable(tf.constant(0.0, shape=[inputs.shape[-1]]),
-        #                                 name='beta', trainable=True)
-        #     gamma = tf.Variable(tf.constant(1.0, shape=[inputs.shape[-1]]),
-        #                                 name='gamma', trainable=True)
-        #     batch_mean, batch_var = tf.nn.moments(inputs, [0,1,2], name='moments')
-        #     ema = tf.train.ExponentialMovingAverage(decay)
-
-        #     def mean_var_with_update():
-        #         ema_apply_op = ema.apply([batch_mean, batch_var])
-        #         with tf.control_dependencies([ema_apply_op]):
-        #             return tf.identity(batch_mean), tf.identity(batch_var)
-
-        #     mean, var = tf.cond(is_training,
-        #                         mean_var_with_update,
-        #                         lambda: (ema.average(batch_mean), ema.average(batch_var)))
-        #     normalized = tf.nn.batch_normalization(inputs, mean, var, beta, gamma, 1e-3)
-        
-        # return normalized
-        
-    def model(self,input, training):
-        x = tf.cast( input , dtype=tf.float32 )        
-        with tf.name_scope("scale_2"):
-            net = self.conv2d(x, self.weights_2[0], 1, 1, "layer1")
-            #net = self.batch_norm_wrapper(net, training)
-            net = self.conv2d(net, self.weights_2[1], 2, 1, "layer2")
-            #net = self.batch_norm_wrapper(net, training)
-            net = self.conv2d(net, self.weights_2[2], 1, 1, "layer3")
-            #net = self.batch_norm_wrapper(net, training)
-            net = self.conv2d(net, self.weights_2[3], 1, 1, "layer4")
-            #net = self.batch_norm_wrapper(net, training)
-            net = self.conv2d(net, self.weights_2[4], 1, 3, "layer5")
-            #net = self.batch_norm_wrapper(net, training)
-            net = self.conv2d(net, self.weights_2[5], 1, 6, "layer6")
-            #net = self.batch_norm_wrapper(net, training)
-            self.net_s_2 = self.conv2d(net, self.weights_2[6], 1, 1, "output_2", False)
-        
-        net = self.maxpool(net, 2, 2, "layer7")
-        #net = self.batch_norm_wrapper(net, training)
-
-        with tf.name_scope("scale_4"):
-            net = self.conv2d(net, self.weights_4[0], 1, 1, "layer8")
-            #net = self.batch_norm_wrapper(net, training)
-            net = self.conv2d(net, self.weights_4[1], 1, 1, "layer9")
-            #net = self.batch_norm_wrapper(net, training)
-            net = self.conv2d(net, self.weights_4[2], 1, 3, "layer10")
-            #net = self.batch_norm_wrapper(net, training)
-            self.net_s_4 = self.conv2d(net, self.weights_4[3], 1, 1, "outpu_4", False)
-        
-        net = self.maxpool(net, 2, 2, "layer11")
-        #net = self.batch_norm_wrapper(net, training)
-
-        with tf.name_scope("scale_8"):
-            net = self.conv2d(net, self.weights_8[0], 1, 1, "layer12")
-            #net = self.batch_norm_wrapper(net, training)
-            net = self.conv2d(net, self.weights_8[1], 1, 1, "layer13")
-            #net = self.batch_norm_wrapper(net, training)
-            net = self.conv2d(net, self.weights_8[2], 1, 3, "layer14")
-            #net = self.batch_norm_wrapper(net, training)
-            self.net_s_8 = self.conv2d(net, self.weights_8[3], 1, 1, "outpu_8", False)
-            
-        net = self.maxpool(net, 2, 2, "layer15")
-        #net = self.batch_norm_wrapper(net, training)
-        
-        with tf.name_scope("scale_16"):
-            net = self.conv2d(net, self.weights_16[0], 1, 1, "layer16")
-            #net = self.batch_norm_wrapper(net, training)
-            net = self.conv2d(net, self.weights_16[1], 1, 1, "layer17")
-            #net = self.batch_norm_wrapper(net, training)
-            net = self.conv2d(net, self.weights_16[2], 1, 3, "layer18")
-            #net = self.batch_norm_wrapper(net, training)
-            self.net_s_16 = self.conv2d(net, self.weights_16[3], 1, 1, "outpu_16", False)
-            
     def network_loss_function(self, labels):
                         
-        with tf.name_scope('loss_2_a'):
-            loss_2_model = NetworkLoss(self.BatchSize, 2, 0.3, 0.33, 2.0)
-            loss_2_result = loss_2_model.compute_loss(self.net_s_2,labels)
-                      
-        with tf.name_scope('loss_4_a'):
-            loss_4_model = NetworkLoss(self.BatchSize, 2, 0.3, 0.33, 4.0)
-            loss_4_result = loss_4_model.compute_loss(self.net_s_4,labels)
+        with tf.variable_scope('loss_2'):
+            errors = []
+            for i in range(self.BatchSize):          
+                current_img = self.net_s_2[i]
+                current_lbl = labels[i]
+                img_error = self.scan_image_function(current_img, current_lbl, 2, 0.3, 0.33, 2)
+                errors.append(img_error)
+
+            loss_output = tf.placeholder(dtype=tf.float32,shape=(self.BatchSize))
+            loss_constant = tf.constant(1.0,shape=[self.BatchSize],dtype=tf.float32)
+            loss_output = tf.multiply(errors,loss_constant)
+            loss_2 = tf.reduce_sum(loss_output)
             
-        with tf.name_scope('loss_8_a'):
-            loss_8_model = NetworkLoss(self.BatchSize, 2, 0.3, 0.33, 8.0)
-            loss_8_result = loss_8_model.compute_loss(self.net_s_8,labels)
+        with tf.variable_scope('loss_4'):  
+            errors = []  
+            for i in range(self.BatchSize):          
+                current_img = self.net_s_4[i]
+                current_lbl = labels[i]
+                img_error = self.scan_image_function(current_img, current_lbl, 2, 0.3, 0.33, 4)
+                errors.append(img_error)
+
+            loss_output = tf.placeholder(dtype=tf.float32,shape=(self.BatchSize))
+            loss_constant = tf.constant(1.0,shape=[self.BatchSize],dtype=tf.float32)
+            loss_output = tf.multiply(errors,loss_constant)
+            loss_4 = tf.reduce_sum(loss_output)
+            
+        with tf.variable_scope('loss_8'):
+            errors = []
+            for i in range(self.BatchSize):          
+                current_img = self.net_s_8[i]
+                current_lbl = labels[i]
+                img_error = self.scan_image_function(current_img, current_lbl, 2, 0.3, 0.33, 8)
+                errors.append(img_error)
+
+            loss_output = tf.placeholder(dtype=tf.float32,shape=(self.BatchSize))
+            loss_constant = tf.constant(1.0,shape=[self.BatchSize],dtype=tf.float32)
+            loss_output = tf.multiply(errors,loss_constant)
+            loss_8 = tf.reduce_sum(loss_output)
                     
-        with tf.name_scope('loss_16_a'):
-            loss_16_model = NetworkLoss(self.BatchSize, 2, 0.3, 0.33, 16.0)
-            loss_16_result = loss_16_model.compute_loss(self.net_s_16,labels)           
+        with tf.variable_scope('loss_16'):
+            errors = []
+            for i in range(self.BatchSize):          
+                current_img = self.net_s_16[i]
+                current_lbl = labels[i]
+                img_error = self.scan_image_function(current_img, current_lbl, 2, 0.3, 0.33, 16)
+                errors.append(img_error)
+
+            loss_output = tf.placeholder(dtype=tf.float32,shape=(self.BatchSize))
+            loss_constant = tf.constant(1.0,shape=[self.BatchSize],dtype=tf.float32)
+            loss_output = tf.multiply(errors,loss_constant)
+            loss_16 = tf.reduce_sum(loss_output)            
    
-        return loss_2_result, loss_4_result, loss_8_result, loss_16_result
+        return loss_2, loss_4, loss_8, loss_16
 
     def network_otimizer(self, loss):
         
@@ -340,146 +338,144 @@ class NetworkCreator():
         tran_opt = tf.group(tran_opt_2, tran_opt_4,tran_opt_8, tran_opt_16)
         return tran_opt
 
-    def init_optimizers(self, learning):
-        self.optimizer_2 = tf.optimizers.Adam(name="adam_optimizer_2",learning_rate=learning)
-        self.optimizer_4 = tf.optimizers.Adam(name="adam_optimizer_4",learning_rate=learning)
-        self.optimizer_8 = tf.optimizers.Adam(name="adam_optimizer_8",learning_rate=learning)
-        self.optimizer_16 = tf.optimizers.Adam(name="adam_optimizer_16",learning_rate=learning)
-    
-    
-    #@tf.function
-    def train_step(self, model, inputs, label):
-            
-        if self.learning_changed:
-            self.init_optimizers(self.learning)
-        
-
-        # GradientTape need to be persistent because we want to compute multiple gradients and it is no allowed by default
-        with tf.GradientTape(persistent=True) as tape:
-            model(inputs,self.is_training)
-            loss_2, loss_4, loss_8, loss_16 = self.network_loss_function(label)
-            loss = tf.reduce_sum([loss_2,loss_4,loss_8, loss_16],name="global_loss")
-            
-        # var_scale_2 = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='scale_2')
-        # var_scale_4 = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='scale_4')
-        # var_scale_8 = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='scale_8')
-        # var_scale_16 = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='scale_16')
-        # update_ops = tf.Graph().get_collection('update_ops')
-        # with tf.control_dependencies(update_ops):
-        grads_2 = tape.gradient( loss_2 , self.weights_2 )
-        grads_4 = tape.gradient( loss_4 , self.weights_4 )
-        grads_8 = tape.gradient( loss_8 , self.weights_8 )
-        grads_16 = tape.gradient( loss_16 , self.weights_16 )
-        
-        # after gradient computation, we delete GradientTape object so it could be garbage collected
-        del tape
-        
-        self.optimizer_2.apply_gradients(zip(grads_2,self.weights_2))
-        self.optimizer_4.apply_gradients(zip(grads_4,self.weights_4))
-        self.optimizer_8.apply_gradients(zip(grads_8,self.weights_8))
-        self.optimizer_16.apply_gradients(zip(grads_16,self.weights_16))
-        
-        return loss
-     
     def train(self, loader):
-        
-        test_acc = 1
-        epoch = 1
-        self.init_weights()
-        # tf.train.write_graph(session.graph_def,r"C:\Users\Lukas\Documents\Object detection\model",'model.pbtxt')
-        # writer = tf.summary.FileWriter(r"C:\Users\Lukas\Documents\Object detection\model", session.graph)
-        learning = cfg.LEARNING_RATE
-        update_edge = 0.1
-        learning_changed = True
-        while test_acc > cfg.MAX_ERROR:
-            self.learning = learning
-            self.is_training = True
-            self.learning_changed = True
-            for i in range(cfg.ITERATIONS):                
-                image_batch, labels_batch, = loader.get_train_data(self.BatchSize)
-                # train_fn = self.train_step_fn()        
-                _ = self.train_step(self.model, image_batch, labels_batch)
-                self.learning_changed = False
             
-            self.is_training = False
-            image_batch, labels_batch, = loader.get_train_data(self.BatchSize)
-            self.model(image_batch,False)
-            loss_2, loss_4, loss_8, loss_16 = self.network_loss_function(labels_batch)
-            test_acc = tf.reduce_sum([loss_2,loss_4,loss_8, loss_16],name="global_loss") 
-            print("Epoch:", (epoch), "test error: {:.5f}".format(test_acc))
-            epoch += 1
+        graph_path = os.path.dirname(os.path.abspath(__file__)) + r"\graphs\tensorboard"
+        iterations = cfg.ITERATIONS
+        
+        image_placeholder = tf.placeholder(tf.float32, [None, cfg.IMG_HEIGHT, cfg.IMG_WIDTH, cfg.IMG_CHANNELS],name="input_image_placeholder")
+        labels_placeholder = tf.placeholder(tf.float32, [None, None, 10], name="input_label_placeholder")
+        self.learning = tf.placeholder(tf.float32,(),name="input_learning_rate")
+        #self.is_training = tf.placeholder(tf.bool, name='input_is_training_placeholder')
+        #self.is_training = tf.placeholder_with_default(cfg.IS_TRAINING, (), name='input_is_training_placeholder')  
+
+        self.create_detection_network_2(image_placeholder)        
+        loss_2, loss_4, loss_8, loss_16 = self.network_loss_function(labels_placeholder)
+        loss = tf.reduce_sum([loss_2,loss_4,loss_8, loss_16],name="global_loss")    
+        
+        update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+        with tf.control_dependencies(update_ops):
+            optimize = self.network_otimizer(loss)
+        
+        saver = tf.train.Saver(name='model_saver')
+        init = tf.global_variables_initializer()
+        
+        with tf.Session() as session:
+            session.run(init)
+
+            test_acc = 1
+            epoch = 1
+            tf.train.write_graph(session.graph_def,r"C:\Users\Lukas\Documents\Object detection\model",'model.pbtxt')
+            writer = tf.summary.FileWriter(r"C:\Users\Lukas\Documents\Object detection\model", session.graph)
+            learning = cfg.LEARNING_RATE
+            update_edge = 0.1
+            print("Learning rate for AdamOtimizer", learning)
+            while test_acc > cfg.MAX_ERROR:
+                for i in range(iterations):
+                    image_batch, labels_batch, = loader.get_train_data(self.BatchSize)                    
+                    session.run(optimize, 
+                                    feed_dict={image_placeholder: image_batch, labels_placeholder: labels_batch, self.is_training: True, self.learning: learning})
+
+                image_batch, labels_batch = loader.get_train_data(self.BatchSize)
+                test_acc = session.run(loss, 
+                                feed_dict={image_placeholder: image_batch, labels_placeholder: labels_batch, self.is_training: False, self.learning: learning})
+                
+                print("Epoch:", (epoch), "test error: {:.5f}".format(test_acc))
+                epoch += 1
+
+                if math.isnan(test_acc):
+                    s_2, s_4, s_8, s_16 = session.run([self.net_s_2,self.net_s_4,self.net_s_8,self.net_s_16], 
+                                feed_dict={image_placeholder: image_batch[0], labels_placeholder: labels_batch[0], self.is_training: False, self.learning: learning})
+                    np.save(r"C:\Users\Lukas\Documents\Object detection\test\train_s_2.txt",s_2)
+                    np.save(r"C:\Users\Lukas\Documents\Object detection\test\train_s_4.txt",s_4)
+                    np.save(r"C:\Users\Lukas\Documents\Object detection\test\train_s_8.txt",s_8)
+                    np.save(r"C:\Users\Lukas\Documents\Object detection\test\train_s_16.txt",s_16)
+                    break
+                
+                if test_acc < update_edge:
+                    learning = learning / 10
+                    update_edge = update_edge / 10
+                    print("Learning rate updated to", learning)
+
+                # if epoch % 20 == 0:
+                #     learning = learning / 10
+                #     print("Learning rate updated to", learning)
+                
+            saver.save(session, cfg.MODEL_PATH)            
+            freeze.freeze_and_save()              
+                        
+    def test_loss(self, loader):
             
-            if test_acc < update_edge:
-                self.learning = learning / 10
-                update_edge = update_edge / 10
-                self.learning_changed = True
-                print("Learning rate updated to", learning)
-
-    # def train(self, loader):
+        graph_path = os.path.dirname(os.path.abspath(__file__)) + r"\graphs\tensorboard"
+        iterations = cfg.ITERATIONS
+        
+        image_placeholder = tf.placeholder(tf.float32, [None, cfg.IMG_HEIGHT, cfg.IMG_WIDTH, cfg.IMG_CHANNELS],name="input_image_placeholder")
+        labels_placeholder = tf.placeholder(tf.float32, [None, None, 10], name="input_label_placeholder")
+        is_training = tf.placeholder(tf.bool, name='input_is_training_placeholder')
+        
+        self.create_detection_network_2(image_placeholder)
+        
+        with tf.variable_scope('loss_2'):
+            loss_s_2 = self.network_loss_function(self.net_s_2, labels_placeholder, 2, 0.3, 0.33, 2)
             
-    #     graph_path = os.path.dirname(os.path.abspath(__file__)) + r"\graphs\tensorboard"
-    #     iterations = cfg.ITERATIONS
+        with tf.variable_scope('loss_4'):    
+            loss_s_4 = self.network_loss_function(self.net_s_4, labels_placeholder, 2, 0.3, 0.33, 4)
         
-    #     image_placeholder = tf.placeholder(tf.float32, [None, cfg.IMG_HEIGHT, cfg.IMG_WIDTH, cfg.IMG_CHANNELS],name="input_image_placeholder")
-    #     labels_placeholder = tf.placeholder(tf.float32, [None, None, 10], name="input_label_placeholder")
-    #     self.learning = tf.placeholder(tf.float32,(),name="input_learning_rate")
-    #     #self.is_training = tf.placeholder(tf.bool, name='input_is_training_placeholder')
-    #     #self.is_training = tf.placeholder_with_default(cfg.IS_TRAINING, (), name='input_is_training_placeholder')  
+        with tf.variable_scope('loss_8'):
+            loss_s_8 = self.network_loss_function(self.net_s_8, labels_placeholder, 2, 0.3, 0.33, 8)
+        
+        with tf.variable_scope('loss_16'):
+            loss_s_16 = self.network_loss_function(self.net_s_16, labels_placeholder, 2, 0.3, 0.33, 16)
+            
+        errors = tf.convert_to_tensor([loss_s_2, loss_s_4, loss_s_8, loss_s_16], dtype=tf.float32)
+        optimizer = tf.train.AdamOptimizer(name="adam_optimalizer",learning_rate=0.0001).minimize(errors)
+        
+        error_value = tf.reduce_mean(errors)
+        
+        saver = tf.train.Saver(name='model_saver')
+        init = tf.global_variables_initializer()
 
-    #     self.create_detection_network_2(image_placeholder)        
-    #     loss_2, loss_4, loss_8, loss_16 = self.network_loss_function(labels_placeholder)
-    #     loss = tf.reduce_sum([loss_2,loss_4,loss_8, loss_16],name="global_loss")    
-        
-    #     update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
-    #     with tf.control_dependencies(update_ops):
-    #         optimize = self.network_otimizer(loss)
-        
-    #     saver = tf.train.Saver(name='model_saver')
-    #     init = tf.global_variables_initializer()
-        
-    #     with tf.Session() as session:
-    #         session.run(init)
 
-    #         test_acc = 1
-    #         epoch = 1
-    #         tf.train.write_graph(session.graph_def,r"C:\Users\Lukas\Documents\Object detection\model",'model.pbtxt')
-    #         writer = tf.summary.FileWriter(r"C:\Users\Lukas\Documents\Object detection\model", session.graph)
-    #         learning = cfg.LEARNING_RATE
-    #         update_edge = 0.1
-    #         print("Learning rate for AdamOtimizer", learning)
-    #         while test_acc > cfg.MAX_ERROR:
-    #             for i in range(iterations):
-    #                 image_batch, labels_batch, = loader.get_train_data(self.BatchSize)                    
-    #                 session.run(optimize, 
-    #                                 feed_dict={image_placeholder: image_batch, labels_placeholder: labels_batch, self.is_training: True, self.learning: learning})
 
-    #             image_batch, labels_batch = loader.get_train_data(self.BatchSize)
-    #             test_acc = session.run(loss, 
-    #                             feed_dict={image_placeholder: image_batch, labels_placeholder: labels_batch, self.is_training: False, self.learning: learning})
+
+
+        with tf.Session() as session:
+        # initialise the variables
+
+            session.run(init)
+
+            test_acc = 1
+            epoch = 1
+            
+            
+            while test_acc > cfg.MAX_ERROR:
+                for i in range(iterations):
+                    image_batch, labels_batch, = loader.get_train_data(self.BatchSize)                    
+                    session.run(optimizer, 
+                                    feed_dict={image_placeholder: image_batch, labels_placeholder: labels_batch, is_training: True})
+
+                image_batch, labels_batch, paths, _ = loader.get_test_data(self.BatchSize)
+                test_acc, s_2 = session.run([error_value,self.net_s_2], 
+                                feed_dict={image_placeholder: image_batch, labels_placeholder: labels_batch, is_training: False})
                 
-    #             print("Epoch:", (epoch), "test error: {:.5f}".format(test_acc))
-    #             epoch += 1
-
-    #             if math.isnan(test_acc):
-    #                 s_2, s_4, s_8, s_16 = session.run([self.net_s_2,self.net_s_4,self.net_s_8,self.net_s_16], 
-    #                             feed_dict={image_placeholder: image_batch[0], labels_placeholder: labels_batch[0], self.is_training: False, self.learning: learning})
-    #                 np.save(r"C:\Users\Lukas\Documents\Object detection\test\train_s_2.txt",s_2)
-    #                 np.save(r"C:\Users\Lukas\Documents\Object detection\test\train_s_4.txt",s_4)
-    #                 np.save(r"C:\Users\Lukas\Documents\Object detection\test\train_s_8.txt",s_8)
-    #                 np.save(r"C:\Users\Lukas\Documents\Object detection\test\train_s_16.txt",s_16)
-    #                 break
-                
-    #             if test_acc < update_edge:
-    #                 learning = learning / 10
-    #                 update_edge = update_edge / 10
-    #                 print("Learning rate updated to", learning)
-
-    #             # if epoch % 20 == 0:
-    #             #     learning = learning / 10
-    #             #     print("Learning rate updated to", learning)
-                
-    #         saver.save(session, cfg.MODEL_PATH)            
-    #         freeze.freeze_and_save()              
+                print("Epoch:", (epoch), "test error: {:.5f}".format(test_acc))
+                if math.isnan(test_acc):
+                    for p in paths:
+                        print(p)
+                    
+                    for i in range(len(image_batch)):
+                        test_acc, s_2, s_4, s_8, s_16 = session.run([error_value,self.net_s_2,self.net_s_4,self.net_s_8,self.net_s_16], 
+                                feed_dict={image_placeholder: image_batch[i], labels_placeholder: labels_batch[i], is_training: False})
+                        
+                        if math.isnan(test_acc):
+                            np.save(r"C:\Users\Lukas\Documents\Object detection\test\\"+paths[i]+"s_2.txt",s_2)
+                            np.save(r"C:\Users\Lukas\Documents\Object detection\test\\"+paths[i]+"s_4.txt",s_4)
+                            np.save(r"C:\Users\Lukas\Documents\Object detection\test\\"+paths[i]+"s_8.txt",s_8)
+                            np.save(r"C:\Users\Lukas\Documents\Object detection\test\\"+paths[i]+"s_16.txt",s_16)
+                        
+                    break              
+            
+                epoch +=1  
             
     def save_results(self, maps, scale):
         result = cv2.split(np.squeeze(maps,axis=0))
