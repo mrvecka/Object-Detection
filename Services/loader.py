@@ -431,6 +431,8 @@ class Loader:
         result_image = []
         result_label = []
         for x in range(batch_size):
+            if x >= batch_size:
+                break
             result_image.append(data[x].image)
             labels = self.labels_array_for_training(data[x].labels)
             result_label.append(labels)

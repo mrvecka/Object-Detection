@@ -1,9 +1,10 @@
-
+from Network.object_detection_network import ObjectDetectionModel
 import config as cfg
 import numpy as np
 import cv2
 import tensorflow as tf
 import Services.loader as load
+
 
 import Services.bb_extractor as extract
 import Services.non_maxima_supression as NMS
@@ -15,38 +16,22 @@ def start_test():
     loader = load.Loader()
     # loader.load_data()
     loader.load_specific_label("000003")
-    # loader.load_specific_label("001067")
-    new_saver = tf.train.import_meta_graph(cfg.MODEL_PATH + '.meta', clear_devices=True)
-    graph = tf.get_default_graph()
-    input_graph_def = graph.as_graph_def()
-    
-    with tf.Session() as sess:
-        
-        new_saver.restore(sess,cfg.MODEL_PATH)
+    model = ObjectDetectionModel([3,3],'Testing Object Detection Model')
+    model.build(input_shape=(None,cfg.IMG_HEIGHT,cfg.IMG_WIDTH,cfg.IMG_CHANNELS))               
+    model.load_weights(cfg.MODEL_PATH_H5)
             
-        graph = tf.get_default_graph()
-        image_placeholder = graph.get_tensor_by_name(
-            "input_image_placeholder:0")
-        is_training = graph.get_tensor_by_name(
-            "input_is_training_placeholder:0") 
+        
+    image_batch, label_batch, image_paths,image_names, calib_matrices = loader.get_test_data(1)
+    out_2, out_4, out_8, out_16 = model(image_batch,False)
+    del model
+    save_results(out_2.numpy(), 2)
+    save_results(out_4.numpy(), 4)
+    save_results(out_8.numpy(), 8)
+    save_results(out_16.numpy(), 16)
 
-        predict_2 = graph.get_tensor_by_name("scale_2/output2/Conv2D:0")
-        predict_4 = graph.get_tensor_by_name("scale_4/output4/Conv2D:0")
-        predict_8 = graph.get_tensor_by_name("scale_8/output8/Conv2D:0")
-        predict_16 = graph.get_tensor_by_name("scale_16/output16/Conv2D:0")
-
-        image_batch, label_batch, image_paths,image_names, calib_matrices = loader.get_test_data(1)
-
-        response_maps_2, response_maps_4, response_maps_8, response_maps_16 = sess.run(
-            [predict_2, predict_4, predict_8, predict_16], feed_dict={image_placeholder: image_batch,  is_training: False})
-        save_results(response_maps_2, 2)
-        save_results(response_maps_4, 4)
-        save_results(response_maps_8, 8)
-        save_results(response_maps_16, 16)
-
-        extract_and_show(response_maps_2, response_maps_4, response_maps_8,
-                         response_maps_16, label_batch, calib_matrices, image_paths)
-        # show_triangle(response_maps_2,response_maps_4,response_maps_8,response_maps_16,image_paths)
+    extract_and_show(out_2.numpy(), out_4.numpy(), out_8.numpy(), out_16.numpy(),
+                     label_batch, calib_matrices, image_paths)
+    # show_triangle(response_maps_2,response_maps_4,response_maps_8,response_maps_16,image_paths)
 
 
 def save_results(maps, scale):

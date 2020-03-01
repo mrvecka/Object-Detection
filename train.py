@@ -7,6 +7,7 @@ def StartTrain():
     
     nc = NetworkCreator()
     nc.train(loader)
+    
 
 if __name__ == '__main__':
     StartTrain()
