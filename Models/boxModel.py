@@ -25,5 +25,7 @@ class BoxModel():
         self.ftr = ()
         self.rtl = ()
         self.rtr = ()
-        
+        # 3x8
+        self.world_points = None
+        self.image_points = None
         self.object_index = 0

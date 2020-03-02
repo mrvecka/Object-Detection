@@ -77,44 +77,28 @@ class NetworkCreator():
         self.optimizer_16 = tf.optimizers.Adam(name="adam_optimizer_16",learning_rate=self.get_learning_rate)        
         
         update_edge = 0.01
-        model = ObjectDetectionModel([3,3],'Object Detection Model')
-        model.build(input_shape=(None,cfg.IMG_HEIGHT,cfg.IMG_WIDTH,cfg.IMG_CHANNELS))
+        model = ObjectDetectionModel([3,3],'ObjectDetectionModel')
         
-        # image_batch, labels_batch, = loader.get_train_data(self.BatchSize)    
-        # model._set_inputs(image_batch)
-        # model.save(cfg.MODEL_PATH_PB,save_format="tf")         
-        
-        # new_model = tf.keras.models.load_model(cfg.MODEL_PATH_H5)
-        # print(new_model.summary())
-        
-        # print(model.summary())
-        # ['odm__conv2d__layer_5', 'odm__conv2d__layer_9', 'odm__conv2d__layer_13', 'odm__conv2d__layer_17']
-        # model.compile(optimizer=tf.optimizers.Adam(name="adam_optimizer",learning_rate=self.get_learning_rate),
-        #               loss = {"odm__conv2d__layer_5":NetworkLoss(self.BatchSize, 2.0, "loss_scale_2"),
-        #                       "odm__conv2d__layer_9":NetworkLoss(self.BatchSize, 4.0, "loss_scale_4"),
-        #                       "odm__conv2d__layer_13":NetworkLoss(self.BatchSize, 8.0, "loss_scale_8"),
-        #                       "odm__conv2d__layer_17":NetworkLoss(self.BatchSize, 16.0, "loss_scale_16")},
-        #               loss_weights={'odm__conv2d__layer_5':1.,'odm__conv2d__layer_9':1.,'odm__conv2d__layer_13':1.,'odm__conv2d__layer_17':1.},
-        #               metrics={"odm__conv2d__layer_5":'accuracy',"odm__conv2d__layer_9":'accuracy',"odm__conv2d__layer_13":'accuracy',"odm__conv2d__layer_17":'accuracy'})
-        
-        # image_batch, labels_batch, = loader.get_train_data(4)
-        # history = model.fit(image_batch,[labels_batch,labels_batch,labels_batch,labels_batch],
-        #                     batch_size=2,epochs=10,verbose=2)
+        #inputs = tf.keras.Input(shape=(cfg.IMG_HEIGHT,cfg.IMG_WIDTH,cfg.IMG_CHANNELS))
+        #outputs = model_(inputs)
+        #model = tf.keras.Model(inputs=inputs,outputs=outputs)
+        # model.save(cfg.MODEL_PATH_H5)         
         
         errors = []
         while test_acc > cfg.MAX_ERROR:
             for i in range(cfg.ITERATIONS):                
                 # train_fn = self.train_step_fn()  
                 image_batch, labels_batch, = loader.get_train_data(self.BatchSize)    
-                _ = self.train_step(new_model, image_batch, labels_batch)
+                _ = self.train_step(model, image_batch, labels_batch)
             
             image_batch, labels_batch, = loader.get_train_data(self.BatchSize)
-            out_2, out_4, out_8, out_16 = new_model(image_batch,False)
+            out_2, out_4, out_8, out_16 = model(image_batch,False)
             loss_2, loss_4, loss_8, loss_16 = self.network_loss_function(out_2, out_4, out_8, out_16, labels_batch)
             test_acc = tf.reduce_sum([loss_2,loss_4,loss_8, loss_16],name="global_loss") 
             errors.append(test_acc)
             print("Epoch:", (epoch), "test error: {:.5f}".format(test_acc))
             if epoch == 10:
+                model.save_weights(cfg.MODEL_PATH_H5)
                 break
                 
             epoch += 1
@@ -124,7 +108,6 @@ class NetworkCreator():
                 update_edge = update_edge / 10
                 print("Learning rate updated to", self.learning)  
                 
-        new_model.save_weights(cfg.MODEL_PATH_H5)
 
  
                

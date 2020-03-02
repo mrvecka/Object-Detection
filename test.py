@@ -9,6 +9,7 @@ import Services.loader as load
 import Services.bb_extractor as extract
 import Services.non_maxima_supression as NMS
 import Services.drawer as drawer
+import Services.evaluate as evaluator
 
 
 def start_test():
@@ -68,9 +69,11 @@ def save_results(maps, scale):
 
 def extract_and_show(response_maps_2, response_maps_4, response_maps_8, response_maps_16, label_batch, calib_matrices, image_paths):
 
+
     b_boxes_model = extract.extract_bounding_box(
         response_maps_2, label_batch[0], calib_matrices[0], image_paths[0], 2, 33)
     nms_result = NMS.start_nms(b_boxes_model,2)
+    evaluator.evaluate(nms_result)
     if not nms_result is None:
         nms_result.file_name = image_paths[0]
         drawer.draw_bounding_boxes(nms_result, 2)
@@ -78,6 +81,7 @@ def extract_and_show(response_maps_2, response_maps_4, response_maps_8, response
     b_boxes_model = extract.extract_bounding_box(
         response_maps_4, label_batch[0], calib_matrices[0], image_paths[0], 4, 66)
     nms_result = NMS.start_nms(b_boxes_model,4)
+    evaluator.evaluate(nms_result)
     if not nms_result is None:
         nms_result.file_name = image_paths[0]
         drawer.draw_bounding_boxes(nms_result, 4)
@@ -85,6 +89,7 @@ def extract_and_show(response_maps_2, response_maps_4, response_maps_8, response
     b_boxes_model = extract.extract_bounding_box(
         response_maps_8, label_batch[0], calib_matrices[0], image_paths[0], 8, 133)
     nms_result = NMS.start_nms(b_boxes_model,8)
+    evaluator.evaluate(nms_result)
     if not nms_result is None:
         nms_result.file_name = image_paths[0]
         drawer.draw_bounding_boxes(nms_result, 8)
@@ -92,6 +97,7 @@ def extract_and_show(response_maps_2, response_maps_4, response_maps_8, response
     b_boxes_model = extract.extract_bounding_box(
         response_maps_16, label_batch[0], calib_matrices[0], image_paths[0], 16, 266)
     nms_result = NMS.start_nms(b_boxes_model,16)
+    evaluator.evaluate(nms_result)
     if not nms_result is None:
         nms_result.file_name = image_paths[0]
         drawer.draw_bounding_boxes(nms_result, 16)

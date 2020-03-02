@@ -1,6 +1,7 @@
 import config as cfg
 import cv2
 import numpy as np
+import copy
 
 import tensorflow as tf
 
@@ -166,6 +167,21 @@ class ObjectDetectionModel(tf.keras.Model):
         
         self.out_16_trainable_variables = self.layer16.trainable_variables + self.layer17.trainable_variables + self.layer18.trainable_variables + self.output_16.trainable_variables
        
+    def get_config(self):
+        layer_configs = []
+        for layer in self.layers:
+            layer_configs.append({
+                'class_name': layer.__class__.__name__,
+                'config': layer.get_config()
+            })
+        config = {
+            'name': self.model_name,
+            'layers': copy.copy(layer_configs),
+            "kernel_size": self.kernel_size
+        }
+
+        return config
+
     @tf.function
     def call(self, input, training):
         

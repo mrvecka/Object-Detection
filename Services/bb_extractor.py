@@ -133,6 +133,8 @@ def run_projection(fbl_x, fbl_y, fbr_x, fbr_y, rbl_x, rbl_y, ftl_y, calib_matrix
     points = geom.world_space_to_image(data, calib_matrix)
 
     box = BoxModel()
+    box.world_points = transposed
+    box.image_points = points
     box.fbl = (int(points[0,0]), int(points[1,0]))
     box.fbr = (int(points[0,1]), int(points[1,1]))
     box.rbl = (int(points[0,2]), int(points[1,2]))

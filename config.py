@@ -3,7 +3,7 @@ MODEL_PATH_JSON = r"C:\Users\Lukas\Documents\Object detection 2.0\model\my_net_j
 MODEL_PATH_H5 = r"C:\Users\Lukas\Documents\Object detection 2.0\model\my_net_h5\object_detection_model.h5"
 MODEL_WEIGHTS = r"C:\Users\Lukas\Documents\Object detection 2.0\model\my_net_h5\object_detection_model\model_weights-{epoch:04d}.ckpt"
 MODEL_PATH_PB = r"C:\Users\Lukas\Documents\Object detection 2.0\model\my_net_pb\object_detection_model"
-FROZEN_MODEL_PATH = r'C:\Users\Lukas\Documents\Object detection 2.0\model'
+FROZEN_MODEL_PATH = r'C:\Users\Lukas\Documents\Object detection 2.0\model\experimental'
 # optional: if not specified program look for base dir + \[images,calib,label] + \training + \[image,calib,label]
 IMAGE_PATH = r'D:\Documents\KITTI\images\training\image'
 CALIB_PATH = r'D:\Documents\KITTI\calib\training\calib'
