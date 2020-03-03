@@ -10,6 +10,7 @@ import Services.bb_extractor as extract
 import Services.non_maxima_supression as NMS
 import Services.drawer as drawer
 import Services.evaluate as evaluator
+import Services.fileworker as fw
 
 
 def start_test():
@@ -25,10 +26,10 @@ def start_test():
     image_batch, label_batch, image_paths,image_names, calib_matrices = loader.get_test_data(1)
     out_2, out_4, out_8, out_16 = model(image_batch,False)
     del model
-    save_results(out_2.numpy(), 2)
-    save_results(out_4.numpy(), 4)
-    save_results(out_8.numpy(), 8)
-    save_results(out_16.numpy(), 16)
+    # save_results(out_2.numpy(), 2)
+    # save_results(out_4.numpy(), 4)
+    # save_results(out_8.numpy(), 8)
+    # save_results(out_16.numpy(), 16)
 
     extract_and_show(out_2.numpy(), out_4.numpy(), out_8.numpy(), out_16.numpy(),
                      label_batch, calib_matrices, image_paths)
@@ -37,33 +38,36 @@ def start_test():
 
 def save_results(maps, scale):
     result = cv2.split(np.squeeze(maps, axis=0))
-    tmp = (result[0] - result[0].min()) * \
-        (255/(result[0].max() - result[0].min()))
+    tmp = (result[0] - result[0].min()) * (255/(result[0].max() - result[0].min()))
     tmp[tmp < 150] = 0
-    path = r"C:\Users\Lukas\Documents\Object detection\result_test_s" + \
-        str(scale)+r"\response_map_0.jpg"
+    
+    base_path = r".\result_test_s" + str(scale)
+    if not fw.check_and_create_folder(base_path):
+        print("Unable to create folder for results. Tried path: ", base_path)
+        return
+    
+    path = base_path +r"\response_map_0.jpg"
     cv2.imwrite(path, tmp)
-    path = r"C:\Users\Lukas\Documents\Object detection\result_test_s" + \
-        str(scale)+r"\response_map_1.jpg"
-    cv2.imwrite(path, (maps[0, :, :, 1] - maps[0, :, :, 1].min())
-                * (255/(maps[0, :, :, 1].max() - maps[0, :, :, 1].min())))
-    path = r"C:\Users\Lukas\Documents\Object detection\result_test_s" + \
-        str(scale)+r"\response_map_2.jpg"
+    
+    path = base_path+r"\response_map_1.jpg"
+    cv2.imwrite(path, maps[0, :, :, 1])
+    
+    path = base_path+r"\response_map_2.jpg"
     cv2.imwrite(path, maps[0, :, :, 2])
-    path = r"C:\Users\Lukas\Documents\Object detection\result_test_s" + \
-        str(scale)+r"\response_map_3.jpg"
+    
+    path = base_path+r"\response_map_3.jpg"
     cv2.imwrite(path, maps[0, :, :, 3])
-    path = r"C:\Users\Lukas\Documents\Object detection\result_test_s" + \
-        str(scale)+r"\response_map_4.jpg"
+    
+    path = base_path+r"\response_map_4.jpg"
     cv2.imwrite(path, maps[0, :, :, 4])
-    path = r"C:\Users\Lukas\Documents\Object detection\result_test_s" + \
-        str(scale)+r"\response_map_5.jpg"
+    
+    path = base_path+r"\response_map_5.jpg"
     cv2.imwrite(path, maps[0, :, :, 5])
-    path = r"C:\Users\Lukas\Documents\Object detection\result_test_s" + \
-        str(scale)+r"\response_map_6.jpg"
+    
+    path = base_path+r"\response_map_6.jpg"
     cv2.imwrite(path, maps[0, :, :, 6])
-    path = r"C:\Users\Lukas\Documents\Object detection\result_test_s" + \
-        str(scale)+r"\response_map_7.jpg"
+    
+    path = base_path+r"\response_map_7.jpg"
     cv2.imwrite(path, maps[0, :, :, 7])
 
 

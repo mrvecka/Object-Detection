@@ -10,6 +10,16 @@ def check_is_file(path):
 def check_file_exists(path):
     return os.path.exists(path)
 
+def check_and_create_folder(path):
+    path = os.path.abspath(path)
+    if check_dir_exists(path):
+        return True
+    else:
+        if create_dir(path):
+            return True
+        else:
+            return False        
+
 def create_dir(path):
     try:
         os.mkdir(path)

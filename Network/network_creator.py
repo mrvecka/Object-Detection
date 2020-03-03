@@ -77,12 +77,7 @@ class NetworkCreator():
         self.optimizer_16 = tf.optimizers.Adam(name="adam_optimizer_16",learning_rate=self.get_learning_rate)        
         
         update_edge = 0.01
-        model = ObjectDetectionModel([3,3],'ObjectDetectionModel')
-        
-        #inputs = tf.keras.Input(shape=(cfg.IMG_HEIGHT,cfg.IMG_WIDTH,cfg.IMG_CHANNELS))
-        #outputs = model_(inputs)
-        #model = tf.keras.Model(inputs=inputs,outputs=outputs)
-        # model.save(cfg.MODEL_PATH_H5)         
+        model = ObjectDetectionModel([3,3],'ObjectDetectionModel')        
         
         errors = []
         while test_acc > cfg.MAX_ERROR:
@@ -98,7 +93,7 @@ class NetworkCreator():
             errors.append(test_acc)
             print("Epoch:", (epoch), "test error: {:.5f}".format(test_acc))
             if epoch == 10:
-                model.save_weights(cfg.MODEL_PATH_H5)
+                model.save_weights(cfg.MODEL_WEIGHTS)
                 break
                 
             epoch += 1
@@ -107,31 +102,32 @@ class NetworkCreator():
                 self.learning = self.learning / 10
                 update_edge = update_edge / 10
                 print("Learning rate updated to", self.learning)  
-                
-
- 
-               
-       
-    
-       
+                   
             
     def save_results(self, maps, scale):
         result = cv2.split(np.squeeze(maps,axis=0))
-        path = r"C:\Users\Lukas\Documents\Object detection\result_s"+str(scale)+r"\response_map_0.jpg"
+        
+            
+        base_path = r".\.\result_test_s" + str(scale)
+        if not fw.check_and_create_folder(base_path):
+            print("Unable to create folder for results. Tried path: ", base_path)
+            return
+        
+        path = base_path+r"\response_map_0.jpg"
         cv2.imwrite(path, (maps[0,:,:,0] - maps[0,:,:,0].min()) * (255/(maps[0,:,:,0].max() - maps[0,:,:,0].min())))
-        path = r"C:\Users\Lukas\Documents\Object detection\result_s"+str(scale)+r"\response_map_1.jpg"
+        path = base_path+r"\response_map_1.jpg"
         cv2.imwrite(path, 255* result[1])
-        path = r"C:\Users\Lukas\Documents\Object detection\result_s"+str(scale)+r"\response_map_2.jpg"
+        path = base_path+r"\response_map_2.jpg"
         cv2.imwrite(path, 255*result[2])
-        path = r"C:\Users\Lukas\Documents\Object detection\result_s"+str(scale)+r"\response_map_3.jpg"
+        path = base_path+r"\response_map_3.jpg"
         cv2.imwrite(path, 255*result[3])
-        path = r"C:\Users\Lukas\Documents\Object detection\result_s"+str(scale)+r"\response_map_4.jpg"
+        path = base_path+r"\response_map_4.jpg"
         cv2.imwrite(path, 255*result[4])
-        path = r"C:\Users\Lukas\Documents\Object detection\result_s"+str(scale)+r"\response_map_5.jpg"
+        path = base_path+r"\response_map_5.jpg"
         cv2.imwrite(path, 255*result[5])
-        path = r"C:\Users\Lukas\Documents\Object detection\result_s"+str(scale)+r"\response_map_6.jpg"
+        path = base_path+r"\response_map_6.jpg"
         cv2.imwrite(path, 255*result[6])
-        path = r"C:\Users\Lukas\Documents\Object detection\result_s"+str(scale)+r"\response_map_7.jpg"
+        path = base_path+r"\response_map_7.jpg"
         cv2.imwrite(path, 255*result[7])
 
 
