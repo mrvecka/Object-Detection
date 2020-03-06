@@ -3,13 +3,10 @@ import tensorflow as tf
 from Network.network_loss import NetworkLoss
 from Network.object_detection_network import ObjectDetectionModel,ODM_MaxPool_Layer,ODM_Conv2D_Layer
 
-tf.keras.layers.BatchNormalization._USE_V2_BEHAVIOR = False
-
 import config as cfg
 import os
 import cv2
 import numpy as np
-import Services.helper as help
 import math
 import copy   
                          
@@ -18,28 +15,34 @@ class NetworkCreator():
     def __init__(self):
         self.device = cfg.DEVICE_NAME
         self.BatchSize = cfg.BATCH_SIZE
-                     
+         
     def network_loss_function(self,out_2, out_4, out_8, out_16, labels):
                         
-        with tf.name_scope('loss_2_a'):
+        # tf.config.experimental_run_functions_eagerly(True)
+        with tf.name_scope('loss_2'):
             loss_2_model = NetworkLoss(self.BatchSize, 2.0, "loss_scale_2")
             loss_2_result = loss_2_model(out_2,labels)
-                      
-        with tf.name_scope('loss_4_a'):
-            loss_4_model = NetworkLoss(self.BatchSize, 4.0, "loss_scale_2")
+                  
+        del loss_2_model    
+        with tf.name_scope('loss_4'):
+            loss_4_model = NetworkLoss(self.BatchSize, 4.0, "loss_scale_4")
             loss_4_result = loss_4_model(out_4,labels)
-            
-        with tf.name_scope('loss_8_a'):
-            loss_8_model = NetworkLoss(self.BatchSize, 8.0, "loss_scale_2")
+        
+        del loss_4_model  
+        with tf.name_scope('loss_8'):
+            loss_8_model = NetworkLoss(self.BatchSize, 8.0, "loss_scale_8")
             loss_8_result = loss_8_model(out_8,labels)
-                    
-        with tf.name_scope('loss_16_a'):
-            loss_16_model = NetworkLoss(self.BatchSize, 16.0, "loss_scale_2")
+            
+        del loss_8_model        
+        with tf.name_scope('loss_16'):
+            loss_16_model = NetworkLoss(self.BatchSize, 16.0, "loss_scale_16")
             loss_16_result = loss_16_model(out_16,labels)           
+        # tf.config.experimental_run_functions_eagerly(False)
    
+        del loss_16_model
         return loss_2_result, loss_4_result, loss_8_result, loss_16_result
     
-    def train_step(self, model, inputs, label):
+    def train_step(self, model, inputs, label, optimizers):
             
         # GradientTape need to be persistent because we want to compute multiple gradients and it is no allowed by default
         with tf.GradientTape(persistent=True) as tape:
@@ -47,62 +50,70 @@ class NetworkCreator():
             loss_2, loss_4, loss_8, loss_16 = self.network_loss_function(out_2, out_4, out_8, out_16, label)
             loss = tf.reduce_sum([loss_2,loss_4,loss_8, loss_16],name="global_loss")
             
-        grads_2 = tape.gradient( loss_2 , model.out_2_trainable_variables )
+        grads_2 = tape.gradient( loss_2 , model.out_2_trainable_variables)
         grads_4 = tape.gradient( loss_4 , model.out_4_trainable_variables )
         grads_8 = tape.gradient( loss_8 , model.out_8_trainable_variables )
         grads_16 = tape.gradient( loss_16 , model.out_16_trainable_variables )
         
-        
-        self.optimizer_2.apply_gradients(zip(grads_2,model.out_2_trainable_variables))
-        self.optimizer_4.apply_gradients(zip(grads_4,model.out_4_trainable_variables))
-        self.optimizer_8.apply_gradients(zip(grads_8,model.out_8_trainable_variables))
-        self.optimizer_16.apply_gradients(zip(grads_16,model.out_16_trainable_variables))
-        
         # after gradient computation, we delete GradientTape object so it could be garbage collected
         del tape
+        
+        optimizers[0].apply_gradients(zip(grads_2,model.out_2_trainable_variables))
+        optimizers[1].apply_gradients(zip(grads_4,model.out_4_trainable_variables))
+        optimizers[2].apply_gradients(zip(grads_8,model.out_8_trainable_variables))
+        optimizers[3].apply_gradients(zip(grads_16,model.out_16_trainable_variables))
+        
         return loss
-     
+    
+    
     def get_learning_rate(self):
         return self.learning
     
-    def train(self, loader):
+    
+    def train(self, model, loader, optimizers,test_acc,epoch,update_edge,max_error):
         
-        self.learning = cfg.LEARNING_RATE
-        test_acc = 1
-        epoch = 1 
-        
-        self.optimizer_2 = tf.optimizers.Adam(name="adam_optimizer_2",learning_rate=self.get_learning_rate)
-        self.optimizer_4 = tf.optimizers.Adam(name="adam_optimizer_4",learning_rate=self.get_learning_rate)
-        self.optimizer_8 = tf.optimizers.Adam(name="adam_optimizer_8",learning_rate=self.get_learning_rate)
-        self.optimizer_16 = tf.optimizers.Adam(name="adam_optimizer_16",learning_rate=self.get_learning_rate)        
-        
-        update_edge = 0.01
-        model = ObjectDetectionModel([3,3],'ObjectDetectionModel')        
-        
+
+        iteration = cfg.ITERATIONS
         errors = []
-        while test_acc > cfg.MAX_ERROR:
-            for i in range(cfg.ITERATIONS):                
+        while test_acc > max_error:
+            for i in range(iteration):                
                 # train_fn = self.train_step_fn()  
                 image_batch, labels_batch, = loader.get_train_data(self.BatchSize)    
-                _ = self.train_step(model, image_batch, labels_batch)
+                _ = self.train_step(model, image_batch, labels_batch,optimizers)
+                #print("Iteration: ",i)
             
             image_batch, labels_batch, = loader.get_train_data(self.BatchSize)
             out_2, out_4, out_8, out_16 = model(image_batch,False)
             loss_2, loss_4, loss_8, loss_16 = self.network_loss_function(out_2, out_4, out_8, out_16, labels_batch)
             test_acc = tf.reduce_sum([loss_2,loss_4,loss_8, loss_16],name="global_loss") 
-            errors.append(test_acc)
-            print("Epoch:", (epoch), "test error: {:.5f}".format(test_acc))
-            if epoch == 10:
-                model.save_weights(cfg.MODEL_WEIGHTS)
-                break
+            errors.append(test_acc.numpy())
+            print("Epoch:", (epoch), "test error: ", test_acc.numpy())
                 
             epoch += 1
             
             if test_acc < update_edge:
                 self.learning = self.learning / 10
                 update_edge = update_edge / 10
-                print("Learning rate updated to", self.learning)  
-                   
+                print("Learning rate updated to", self.learning) 
+                
+        print(errors) 
+     
+     
+    def start_train(self, loader):
+        
+        self.learning = cfg.LEARNING_RATE
+
+        optimizer_2 = tf.optimizers.Adam(name="adam_optimizer_2",learning_rate=self.get_learning_rate)
+        optimizer_4 = tf.optimizers.Adam(name="adam_optimizer_4",learning_rate=self.get_learning_rate)
+        optimizer_8 = tf.optimizers.Adam(name="adam_optimizer_8",learning_rate=self.get_learning_rate)
+        optimizer_16 = tf.optimizers.Adam(name="adam_optimizer_16",learning_rate=self.get_learning_rate) 
+          
+        model = ObjectDetectionModel([3,3],'ObjectDetectionModel')        
+        model.compile()
+        self.train(model, loader, [optimizer_2,optimizer_4,optimizer_8,optimizer_16],1,1,0.01,cfg.MAX_ERROR)
+        model.save_weights(cfg.MODEL_WEIGHTS)
+
+                      
             
     def save_results(self, maps, scale):
         result = cv2.split(np.squeeze(maps,axis=0))

@@ -12,6 +12,8 @@ class NetworkLoss(tf.keras.losses.Loss):
         self.weight_factor = cfg.WEIGHT_FACTOR
         self.scale = scale
         self.batch_size = batch
+        
+        self.unwanted_label = tf.constant(-1, dtype=tf.float32)
     
     def get_config(self):
         base_config = super().get_config()
@@ -36,7 +38,7 @@ class NetworkLoss(tf.keras.losses.Loss):
         height = image.shape.dims[0].value
         channels = image.shape.dims[2].value
         
-        target = tf.py_function(self.create_target_response_map, [label, width, height], [tf.float32])
+        target = self.create_target_response_map(label, width, height)
         
         target = tf.reshape(target,(channels,height,width))        
         
@@ -60,13 +62,15 @@ class NetworkLoss(tf.keras.losses.Loss):
                              tf.multiply(target[0, :, :],
                                           tf.square(tf.subtract(target[c,:, :], image[:, :, c])))))
         
-                    
+        
+        del target  
+        del initial         
         error = (1/(2*N))*error     
         tmp = 1/ (3 * N_p * (channels -1))    
         error += tf.cast(tmp, tf.float32) * second_error
        
         return error
-           
+      
     def GetObjectBounds(self):
         ideal_size = (2.0 * self.radius + 1.0) / self.circle_ratio * self.scale
         # bound above
@@ -84,8 +88,9 @@ class NetworkLoss(tf.keras.losses.Loss):
                 
         maps = cv2.split(np.zeros((height,width,8)))
         bound_above, bound_below, ideal = self.GetObjectBounds()
-        for i in range(len(labels)):            
+        for i in range(labels.shape[0]):            
             label = labels[i]
+            
             if label[0] == -1:
                 continue
             # 0       1       2       3       4       5       6     7           8           9

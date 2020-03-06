@@ -106,10 +106,7 @@ class Loader:
             labels = self._load_label(label_path, file_name, calib_matrix, width, height)
             if labels is None:
                 continue
-
-            
-            
-            
+          
             data = DataModel()
             data.image = image
             data.image_path = image_path

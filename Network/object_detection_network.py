@@ -8,16 +8,14 @@ import tensorflow as tf
 
 class ODM_Conv2D_Layer(tf.keras.layers.Layer):
     
-    def __init__(self, kernel, output_size, stride_size, dilation, name, activation=True,trainable=True,dtype=tf.float32 ):
-        super(ODM_Conv2D_Layer, self).__init__(name=name,trainable=trainable,dtype=dtype)
+    def __init__(self, kernel, output_size, stride_size, dilation, name, activation=True,trainable=True,dtype=tf.float32, **kwargs ):
+        super(ODM_Conv2D_Layer, self).__init__(name=name,trainable=trainable,dtype=dtype, **kwargs)
         self.kernel = kernel
         self.output_size = output_size
         self.stride_size = stride_size
         self.dilation = dilation
         self.layer_name = name
         self.activation = activation
-        
-        self.initializer = tf.initializers.glorot_uniform()
 
     def get_config(self):
         config = {'kernel':self.kernel,'output_size':self.output_size,'stride_size':self.stride_size,'dilation':self.dilation,'name':self.name,'activation':self.activation}
@@ -25,22 +23,22 @@ class ODM_Conv2D_Layer(tf.keras.layers.Layer):
         return dict(list(base_config.items()) + list(config.items()))
 
     def build(self,input_shape):
-        self.kernel = tf.Variable( self.initializer( [self.kernel[0],self.kernel[1],input_shape[3],self.output_size] ),
-                                   name=self.layer_name+'_weight' , trainable=True , dtype=tf.float32 )
-        # self.add_variable(self.name,shape=[self.kernel[0],self.kernel[1],self.input.shape[3],self.output_size])
-
+        self.kernel = self.add_weight(name=self.layer_name+"_weights", shape=(self.kernel[0],self.kernel[1],input_shape[3],self.output_size), initializer='uniform')
+        super().build(input_shape)
+        
+        
     @tf.function
     def call(self, inputs):
         out = tf.nn.conv2d( inputs , self.kernel , strides=[ 1 , self.stride_size , self.stride_size , 1 ] ,
-                        dilations=[1, self.dilation, self.dilation, 1], padding="SAME", name=self.layer_name+'_convolution' ) 
+                        dilations=[1, self.dilation, self.dilation, 1], padding="SAME",name=self.layer_name+"_convolution") 
         if self.activation:
-            return tf.nn.relu( out, name=self.layer_name+'_relu_activation') 
+            return tf.nn.relu(out, name=self.layer_name+"_activation") 
         else:
             return out
         
 class ODM_MaxPool_Layer(tf.keras.layers.Layer):
-    def __init__(self, pool_size, stride_size, name):
-        super(ODM_MaxPool_Layer, self).__init__(name=name)
+    def __init__(self, pool_size, stride_size, name, **kwargs ):
+        super(ODM_MaxPool_Layer, self).__init__(name=name, **kwargs )
         self.pool_size = pool_size
         self.stride_size = stride_size
         self.layer_name = name
@@ -49,6 +47,9 @@ class ODM_MaxPool_Layer(tf.keras.layers.Layer):
         base_config = super().get_config()
         config = {'pool_size':self.pool_size,'stride_size':self.stride_size,'name':self.name}
         return dict(list(base_config.items()) + list(config.items()))
+
+    def build(self,input_shape):
+        super().build(input_shape)
 
     @tf.function
     def call(self, inputs):
@@ -111,12 +112,11 @@ def get_object_detection_model(kernel_size):
 
 class ObjectDetectionModel(tf.keras.Model):
     
-    def __init__(self, kernel_size,name):
-        super(ObjectDetectionModel, self).__init__(name=name)
+    def __init__(self, kernel_size,name, **kwargs):
+        super(ObjectDetectionModel, self).__init__(name=name, **kwargs )
         self.kernel_size = kernel_size
         self.model_name =name
-        self._build_input_shape = (None,cfg.IMG_HEIGHT,cfg.IMG_WIDTH, cfg.IMG_CHANNELS)
-        # inputs = tf.keras.Input(shape=[cfg.IMG_HEIGHT,cfg.IMG_WIDTH,cfg.IMG_CHANNELS])
+
         self.layer1 = ODM_Conv2D_Layer(kernel_size,64,1,1,"layer1")
         self.layer1_normal = tf.keras.layers.BatchNormalization(name="layer1_normalization")
         self.layer2 = ODM_Conv2D_Layer(kernel_size,64,2,1,"layer2")
@@ -167,20 +167,20 @@ class ObjectDetectionModel(tf.keras.Model):
         
         self.out_16_trainable_variables = self.layer16.trainable_variables + self.layer17.trainable_variables + self.layer18.trainable_variables + self.output_16.trainable_variables
        
-    def get_config(self):
-        layer_configs = []
-        for layer in self.layers:
-            layer_configs.append({
-                'class_name': layer.__class__.__name__,
-                'config': layer.get_config()
-            })
-        config = {
-            'name': self.model_name,
-            'layers': copy.copy(layer_configs),
-            "kernel_size": self.kernel_size
-        }
+    # def get_config(self):
+    #     layer_configs = []
+    #     for layer in self.layers:
+    #         layer_configs.append({
+    #             'class_name': layer.__class__.__name__,
+    #             'config': layer.get_config()
+    #         })
+    #     config = {
+    #         'name': self.model_name,
+    #         'layers': copy.copy(layer_configs),
+    #         "kernel_size": self.kernel_size
+    #     }
 
-        return config
+    #     return config
 
     @tf.function
     def call(self, input, training):
