@@ -26,15 +26,15 @@ class ODM_Conv2D_Layer(tf.keras.layers.Layer):
         self.kernel = self.add_weight(name=self.layer_name+"_weights", shape=(self.kernel[0],self.kernel[1],input_shape[3],self.output_size), initializer='uniform')
         super().build(input_shape)
         
+    @tf.function
+    def activation_condition(self):
+        return self.activation == True
         
     @tf.function
     def call(self, inputs):
         out = tf.nn.conv2d( inputs , self.kernel , strides=[ 1 , self.stride_size , self.stride_size , 1 ] ,
                         dilations=[1, self.dilation, self.dilation, 1], padding="SAME",name=self.layer_name+"_convolution") 
-        if self.activation:
-            return tf.nn.relu(out, name=self.layer_name+"_activation") 
-        else:
-            return out
+        return tf.cond(self.activation_condition(),lambda: tf.nn.relu(out, name=self.layer_name+"_activation"),lambda: out)
         
 class ODM_MaxPool_Layer(tf.keras.layers.Layer):
     def __init__(self, pool_size, stride_size, name, **kwargs ):

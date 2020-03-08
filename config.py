@@ -19,7 +19,6 @@ BOUNDARIES = 0.33
 
 # amount of data from dataset which will be loaded
 # -1 for all data
-DATA_AMOUNT = 4
 
 IMAGE_EXTENSION = 'png'
 
@@ -36,10 +35,11 @@ IMG_HEIGHT = 128
 IMG_CHANNELS = 3 # based on channel number, image will be loaded colored or grayscaled
 
 DEVICE_NAME = "/gpu:0"
-LEARNING_RATE = 0.001
-BATCH_SIZE = 2
+DATA_AMOUNT = 16
+LEARNING_RATE = 0.0001
+BATCH_SIZE = 4
 MAX_ERROR = 0.001
-UPDATE_EDGE = 0.01
+UPDATE_EDGE = 0.001
 ITERATIONS = 100
 WEIGHT_FACTOR = 2.0
 
