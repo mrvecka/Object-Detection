@@ -19,33 +19,7 @@ class NetworkCreator():
         
         self.model = None
         self.optimizer = None
-    
-    def network_loss_function(self,out_2, out_4, out_8, out_16, labels):
-                        
-        # tf.config.experimental_run_functions_eagerly(True)
-        with tf.name_scope('loss_2'):
-            loss_2_model = NetworkLoss(self.BatchSize, 2.0, "loss_scale_2")
-            loss_2_result = loss_2_model(out_2,labels)
-                  
-        del loss_2_model    
-        with tf.name_scope('loss_4'):
-            loss_4_model = NetworkLoss(self.BatchSize, 4.0, "loss_scale_4")
-            loss_4_result = loss_4_model(out_4,labels)
-        
-        del loss_4_model  
-        with tf.name_scope('loss_8'):
-            loss_8_model = NetworkLoss(self.BatchSize, 8.0, "loss_scale_8")
-            loss_8_result = loss_8_model(out_8,labels)
-            
-        del loss_8_model        
-        with tf.name_scope('loss_16'):
-            loss_16_model = NetworkLoss(self.BatchSize, 16.0, "loss_scale_16")
-            loss_16_result = loss_16_model(out_16,labels)           
-        # tf.config.experimental_run_functions_eagerly(False)
-   
-        del loss_16_model
-        
-        return tf.reduce_sum([loss_2_result,loss_4_result,loss_8_result, loss_16_result],name="global_loss")
+        self.network_loss = None
     
     def train_step(self, inputs, label):
             
@@ -53,7 +27,7 @@ class NetworkCreator():
         # persistent=True
         with tf.GradientTape() as tape:
             out_2, out_4, out_8, out_16 = self.model(inputs,True)
-            loss = self.network_loss_function(out_2, out_4, out_8, out_16, label)
+            loss = self.network_loss([out_2, out_4, out_8, out_16], label)
             
         grads_2 = tape.gradient( loss , self.model.trainable_variables)
         
@@ -85,7 +59,7 @@ class NetworkCreator():
             
             image_batch, labels_batch, = loader.get_train_data(self.BatchSize)
             out_2, out_4, out_8, out_16 = self.model(image_batch,False)
-            test_acc = self.network_loss_function(out_2, out_4, out_8, out_16, labels_batch)
+            test_acc = self.network_loss([out_2, out_4, out_8, out_16], labels_batch)
             acc = test_acc.numpy()
             errors.append(acc)
             _ = t.stop()
@@ -108,10 +82,9 @@ class NetworkCreator():
         
         self.learning = cfg.LEARNING_RATE
 
-        self.optimizer = tf.optimizers.Adam(name="adam_optimizer_2",learning_rate=self.get_learning_rate)
-        
-          
-        self.model = ObjectDetectionModel([3,3],'ObjectDetectionModel')        
+        self.optimizer = tf.optimizers.Adam(name="adam_optimizer_2",learning_rate=self.get_learning_rate) 
+        self.model = ObjectDetectionModel([3,3],'ObjectDetectionModel')
+        self.network_loss = NetworkLoss( "loss_function")
         self.model.compile()
         self.train(loader,1,1,cfg.UPDATE_EDGE,cfg.MAX_ERROR)
         self.model.save_weights(cfg.MODEL_WEIGHTS)

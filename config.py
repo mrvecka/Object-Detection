@@ -35,7 +35,7 @@ IMG_HEIGHT = 128
 IMG_CHANNELS = 3 # based on channel number, image will be loaded colored or grayscaled
 
 DEVICE_NAME = "/gpu:0"
-DATA_AMOUNT = 16
+DATA_AMOUNT = 32
 LEARNING_RATE = 0.0001
 BATCH_SIZE = 4
 MAX_ERROR = 0.001

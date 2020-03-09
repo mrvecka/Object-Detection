@@ -296,18 +296,17 @@ class Loader:
                 label = bb.BB3Txt()
                 label.file_name = data[0]
                 label.label = data[1]
-                label.coinfidence = float(data[2])
-                label.fbl_x = float(data[3])
-                label.fbl_y = float(data[4])
-                label.fbr_x = float(data[5])
-                label.fbr_y = float(data[6])
-                label.rbl_x = float(data[7])
-                label.rbl_y = float(data[8])
-                label.ftl_y = float(data[9])
-                label.bb_center_x = float(data[10])
-                label.bb_center_y = float(data[11])
+                label.fbl_x = float(data[2])
+                label.fbl_y = float(data[3])
+                label.fbr_x = float(data[4])
+                label.fbr_y = float(data[5])
+                label.rbl_x = float(data[6])
+                label.rbl_y = float(data[7])
+                label.ftl_y = float(data[8])
+                label.bb_center_x = float(data[9])
+                label.bb_center_y = float(data[10])
                 
-                label.largest_dim = float(data[12])
+                label.largest_dim = float(data[11])
                 
                 labels.append(label)
 

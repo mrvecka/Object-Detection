@@ -1,9 +1,15 @@
+import os
+import sys
+currentdir = os.path.dirname(os.path.realpath(__file__))
+parentdir = os.path.dirname(currentdir)
+sys.path.append(parentdir)
+import Services.fileworker as fw
+import Services.geometry as geom
+
 import random
 from Models.labelModel import LabelModel
 import numpy as np
-import Services.fileworker as fw
 import config as cfg
-import Services.geometry as geom
 
 class GroundPlaneExtractor():
 
@@ -12,7 +18,7 @@ class GroundPlaneExtractor():
         self.iterations = cfg.RANSAC_ITERATIONS
         self.gp_4_xn = [[]]
         self.label_path = cfg.LABEL_PATH            
-        self.data_amount = cfg.DATA_AMOUNT
+        self.data_amount = 10000
         self.ground_points = []
         
         self.result_gp = []
@@ -20,6 +26,7 @@ class GroundPlaneExtractor():
     def start_ransac(self):
         
         self._load_label_data()
+        
         
         self.gp_4_xn = np.asmatrix(np.ones((4, len(self.ground_points))))
         for i in range(len(self.ground_points)):
@@ -89,13 +96,13 @@ class GroundPlaneExtractor():
         
 
         x = 0
+        labels = []
         while x < self.data_amount:
-            print('loading file',x)
+            # print('loading file',x)
             local_label_path = self.label_path + r'\\' + str(x).zfill(6)+'.txt'
             if not fw.check_file_exists(local_label_path):
                 return None
 
-            labels = []
             with open(local_label_path, 'r') as infile_label:
 
                 for line in infile_label:
@@ -121,7 +128,7 @@ class GroundPlaneExtractor():
             
             x+=1
 
-        return labels
+        #return labels
     
     def _get_bottom_points(self, label):
         #                       rbl                     fbl                 fbr                 rbr
