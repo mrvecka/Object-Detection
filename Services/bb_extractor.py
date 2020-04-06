@@ -39,22 +39,22 @@ def extract_bounding_box(result, labels, calib_matrix, img_path, scale, ideal):
                 rbl_y = maps[6][y,x]
                 ftl_y = maps[7][y,x]
                 
-                if scale == 2:
-                    dist = np.abs(fbl_y - ftl_y)
-                    if dist < 18.92 or dist > 30.57:
-                        continue
-                if scale == 4:
-                    dist = np.abs(fbl_y - ftl_y)
-                    if dist < 25 or dist > 50:
-                        continue
-                if scale == 8:
-                    dist = np.abs(fbl_y - ftl_y)
-                    if dist < 45.33 or dist > 131.24:
-                        continue
-                if scale == 16:
-                    dist = np.abs(fbl_y - ftl_y)
-                    if dist < 50.04 or dist > 236.77:
-                        continue                                                           
+                # if scale == 2:
+                #     dist = np.abs(fbl_y - ftl_y)
+                #     if dist < 18.92 or dist > 30.57:
+                #         continue
+                # if scale == 4:
+                #     dist = np.abs(fbl_y - ftl_y)
+                #     if dist < 25 or dist > 50:
+                #         continue
+                # if scale == 8:
+                #     dist = np.abs(fbl_y - ftl_y)
+                #     if dist < 45.33 or dist > 131.24:
+                #         continue
+                # if scale == 16:
+                #     dist = np.abs(fbl_y - ftl_y)
+                #     if dist < 50.04 or dist > 236.77:
+                #         continue                                                           
                 
                 box = run_projection(fbl_x, fbl_y, fbr_x, fbr_y, rbl_x, rbl_y, ftl_y, calib_matrix)
                 box.object_index = maps[8][y,x]
@@ -71,7 +71,6 @@ def extract_bounding_box(result, labels, calib_matrix, img_path, scale, ideal):
       
     print("EXTRACTION FINISHED!")
     print("TESTING ACCURACY")
-    print("Not yet")
     # zistit ako naparovat boxi z outputu na boxi z labelu
     return image_model
     
@@ -175,15 +174,15 @@ def denormalize_to_true_value(result, maps, scale, ideal):
                     object_count += 1
                     
                 # maps[c][yp][xp] = 0.5 + (label[c-1] - x - j * scale) / ideal
-                maps[1][y,x] = (result[0,y,x,1] - 0.5) * ideal + x_max + x / scale
-                maps[3][y,x] = (result[0,y,x,3] - 0.5) * ideal + x_max + x / scale
-                maps[5][y,x] = (result[0,y,x,5] - 0.5) * ideal + x_max + x / scale
+                maps[1][y,x] = ideal * (result[0,y,x,1] - 0.5) + x_max + x / scale
+                maps[3][y,x] = ideal * (result[0,y,x,3] - 0.5) + x_max + x / scale
+                maps[5][y,x] = ideal * (result[0,y,x,5] - 0.5) + x_max + x / scale
                 
                 # maps[c][yp][xp] = 0.5 + (label[c-1] - y - i * scale) / ideal                
-                maps[2][y,x] = (result[0,y,x,2] - 0.5) * ideal + y_max + y / scale
-                maps[4][y,x] = (result[0,y,x,4] - 0.5) * ideal + y_max + y / scale
-                maps[6][y,x] = (result[0,y,x,6] - 0.5) * ideal + y_max + y / scale
-                maps[7][y,x] = (result[0,y,x,7] - 0.5) * ideal + y_max + y / scale
+                maps[2][y,x] = ideal * (result[0,y,x,2] - 0.5) + y_max + y / scale
+                maps[4][y,x] = ideal * (result[0,y,x,4] - 0.5) + y_max + y / scale
+                maps[6][y,x] = ideal * (result[0,y,x,6] - 0.5) + y_max + y / scale
+                maps[7][y,x] = ideal * (result[0,y,x,7] - 0.5) + y_max + y / scale
                 maps[8][y,x] = object_count
                 # (M - 0.5) - I + x + x_max*S
                     

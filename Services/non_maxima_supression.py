@@ -18,6 +18,9 @@ def start_nms(model: ResultBoxModel, scale: int):
         confidence = 0
         max_box = BoxModel()
         for box in boxes:
+            if box.confidence == 100:
+                most_accurate_boxes.append(box)
+                continue
             if box.confidence > confidence:
                 confidence = box.confidence
                 max_box = box
@@ -25,7 +28,7 @@ def start_nms(model: ResultBoxModel, scale: int):
         most_accurate_boxes.append(max_box)
         
     output = ResultBoxModel()
-    output.boxes = most_accurate_boxes
+    output.boxes = list(filter(lambda b: (b.confidence != 0),most_accurate_boxes))
     output.file_name = model.file_name
                 
     

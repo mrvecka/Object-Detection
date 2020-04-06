@@ -70,7 +70,10 @@ def evaluate(boxes:ResultBoxModel):
             global_error += points_error
             box_count +=1
             
-    evaluation_error = global_error / box_count
+    try:
+        evaluation_error = global_error / box_count
+    except:
+        evaluation_error = -1
     print("EVALUATION ERROR ON",boxes.file_name,": ",evaluation_error)
             
             

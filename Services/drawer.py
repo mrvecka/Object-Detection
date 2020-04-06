@@ -1,4 +1,5 @@
 import cv2
+import Services.fileworker as fw
 
 def draw_bounding_boxes(image_model, scale):
     
@@ -39,8 +40,13 @@ def draw_bounding_boxes(image_model, scale):
         
     resized_back = cv2.resize(resized, (width,height))
     cv2.imshow("result without NMS", resized)
-    cv2.imwrite(r"C:\Users\Lukas\Documents\Object detection\output\output_s"+ str(scale) +".jpg",resized)
+    
+        
     cv2.waitKey(0)
+    base_path = r".\output"
+    if not fw.check_and_create_folder(base_path):
+        return
+    cv2.imwrite(base_path + r"\output_s" + str(scale)+".jpg",resized)
         
         
     

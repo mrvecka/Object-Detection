@@ -84,8 +84,8 @@ def create_bb3txt_object(label, file_name, P, width, height) -> BB3Txt:
 
     bb3.ftl_y = corners[1,3]
     
-    bb3.bb_center_x = label.x_top_left + (label.x_bottom_right - label.x_top_left) /2
-    bb3.bb_center_y = label.y_top_left + (label.y_bottom_right - label.y_top_left) /2
+    bb3.bb_center_x = label.x_top_left + (label.x_bottom_right - label.x_top_left) / 2
+    bb3.bb_center_y = label.y_top_left + (label.y_bottom_right - label.y_top_left) / 2
     
     # scale center of object to CNN input image size
     scale_width_factor = (cfg.IMG_WIDTH * 100) / width

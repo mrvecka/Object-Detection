@@ -3,7 +3,8 @@ from Network.network_creator import NetworkCreator
 import tensorflow as tf
 def StartTrain():
     loader = load.Loader()
-    loader.load_data()
+    loader.load_specific_label("000025")
+    # loader.load_data()
     
     nc = NetworkCreator()
     with tf.device('/gpu:0'):
@@ -12,4 +13,3 @@ def StartTrain():
 
 if __name__ == '__main__':
     StartTrain()
-

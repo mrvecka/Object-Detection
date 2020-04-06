@@ -15,7 +15,7 @@ class BoxesWithEthalons():
 class BoxModel():
 
     def __init__(self):
-        self.confidence: 0
+        self.confidence= 0
         
         self.fbl = ()
         self.fbr = ()

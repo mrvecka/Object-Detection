@@ -78,5 +78,8 @@ def scale_box_size():
     print("heights 16 min:",_min," max:",_max)
 
 
-if __name__ == "__main__":    
+if __name__ == "__main__":   
+    
+    
+     
     scale_box_size() 
