@@ -1,15 +1,17 @@
 import tensorflow as tf
 import tensorflow.keras.backend as K
 from Network.network_loss import NetworkLoss
-from Network.object_detection_network import ObjectDetectionModel, ObjectDetectionModel2 
+from Network.object_detection_network import ObjectDetectionModel 
 from Services.timer import Timer
 
 import config as cfg
 import os
+import sys
 import cv2
 import numpy as np
 import math
 import copy   
+import keras2onnx
                          
 class NetworkCreator():
     
@@ -28,20 +30,6 @@ class NetworkCreator():
         self.loss4 = NetworkLoss( "loss_function_4",4)
         self.loss8 = NetworkLoss( "loss_function_8",8)
         self.loss16 = NetworkLoss( "loss_function_16",16)
-
-    
-    def train_step(self, inputs, label):
-            
-        # GradientTape need to be persistent because we want to compute multiple gradients and it is no allowed by default
-        # persistent=True
-        with tf.GradientTape() as tape:
-            out_2, out_4, out_8, out_16 = self.model.train_on_batch(inputs)
-            loss = self.network_loss[0]([out_2, out_4, out_8, out_16], label)
-            
-        grads = tape.gradient( loss , self.model.trainable_variables)
-        self.optimizer[0].apply_gradients(zip(grads, self.model.trainable_variables))
-        
-        return loss
     
     @tf.function
     def compute_loss(self, label, output):
@@ -58,8 +46,8 @@ class NetworkCreator():
 
         return loss
     
+    @tf.function
     def compute_gradient(self, model, inputs, targets):
-        #print(model.block_2)
         with tf.GradientTape(persistent= True) as tape:
 
             loss_value = self.loss(model, inputs, targets, training=True)
@@ -95,11 +83,10 @@ class NetworkCreator():
     
     def train(self, loader, model):
         
-        update_edge = cfg.UPDATE_EDGE
-        iteration = cfg.ITERATIONS
+        tf.keras.backend.set_floatx('float32')
+        
         epoch = 1
         acc = [9,9,9,9]
-        errors = []
         t_global = Timer()
         t_global.start()
 
@@ -107,110 +94,53 @@ class NetworkCreator():
             epoch_loss_avg = []
             t = Timer()
             t.start()
-            for i in range(iteration):                
-                # train_fn = self.train_step_fn()  
-                image_batch, labels_batch, names = loader.get_train_data(self.BatchSize) 
-                
-                # update_ops = tf.Graph().get_collection(tf.compat.v1.GraphKeys.UPDATE_OPS)
-                # with tf.control_dependencies(update_ops):
+            for i in range(cfg.ITERATIONS):                
+                image_batch, labels_batch, _ = loader.get_train_data(self.BatchSize) 
                 loss_value = self.compute_gradient(model,image_batch, labels_batch)
-                if self.loss_is_nan(loss_value):
-                    print(loss_value)
-                    print(names)
-                    model.save_weights(cfg.MODEL_WEIGHTS)
-                    return
+                self.check_computed_loss(loss_value)
                 
                 epoch_loss_avg.append(loss_value)
-                # _ = self.model.train_on_batch(image_batch,[labels_batch,labels_batch,labels_batch,labels_batch])
-                # loss = self.network_loss[0]([out_2, out_4, out_8, out_16], label)
 
-                #print("Iteration: ",i)
-            
-            # image_batch, labels_batch, = loader.get_train_data(self.BatchSize)
-            # losses = self.model.test_on_batch(image_batch,[labels_batch,labels_batch,labels_batch,labels_batch])
-            # acc = tf.reduce_sum(losses).numpy()
-
-            # acc = self.network_loss[0](out, labels_batch)
-            #errors.append(acc)
             _ = t.stop()
             acc = np.mean(epoch_loss_avg, axis=0)
             print("Epoch {:d}: Loss 2: {:.6f}, Loss 4: {:.6f}, Loss 8: {:.6f}, Loss 16: {:.6f}  Epoch duration: ".format(epoch,acc[0],acc[1],acc[2],acc[3]) + t.get_formated_time())
-            model.save_weights(cfg.MODEL_WEIGHTS)
-
-            if epoch == 30:
-                self.learning = self.learning / 10
-            if epoch == 80:
-                self.learning = self.learning / 10
-                
-
-            #print(f"Epoch: {epoch:4d} test error: {acc:0.5f} Epoch duration: " + t.get_formated_time()) # make time hh:mm:ss
-            # if acc < update_edge:
-            #     self.learning = self.learning /10
-            #     update_edge = update_edge /10
-            #     print("learning rate changed")
-            epoch += 1
             
-                
+            self.save_model(model, epoch)
+            self.update_learning_rate(epoch)               
+            epoch += 1
+                           
         _ = t_global.stop()
-        #print(f"Final test error: {acc:0.5f} Training duration: " + t_global.get_formated_time())
-        print(errors) 
+        self.save_model(model, 0)
+    
+    def check_computed_loss(self, loss_values):
+        if self.loss_is_nan(loss_values):
+            print("One of loss values is NaN, program will be terminated!")
+            print(loss_values)
+            # print(names)
+            sys.exit()
      
+    def update_learning_rate(self, epoch):
+        if epoch in cfg.UPDATE_LEARNING_RATE:
+            self.learning = self.learning / 10
+
+    
+    def save_model(self, model, epoch):
+        if epoch % cfg.SAVE_MODEL_EVERY == 0:
+            model.save_weights(cfg.MODEL_WEIGHTS)
+            
+            model_json = model.to_json()
+            with open("model.json", "w") as json_file:
+                json_file.write(model_json)
+    
      
     def start_train(self, loader):
         
-
-        # self.optimizer = [tf.optimizers.Adam(name="adam_optimizer_2",learning_rate=self.get_learning_rate),
-        # tf.optimizers.Adam(name="adam_optimizer_4",learning_rate=self.get_learning_rate),
-        # tf.optimizers.Adam(name="adam_optimizer_8",learning_rate=self.get_learning_rate),
-        # tf.optimizers.Adam(name="adam_optimizer_16",learning_rate=self.get_learning_rate)] 
-        model = ObjectDetectionModel2([3,3],'ObjectDetectionModel')
-        # model.build((None,cfg.IMG_HEIGHT,cfg.IMG_WIDTH,cfg.IMG_CHANNELS))
-
-        # model.build((cfg.BATCH_SIZE,cfg.IMG_HEIGHT,cfg.IMG_WIDTH,cfg.IMG_CHANNELS))
-        # model.build(tf.keras.Input(shape=(cfg.IMG_HEIGHT,cfg.IMG_WIDTH,cfg.IMG_CHANNELS)))
-        # model.summary()
-        # self.model.compile(optimizer=tf.optimizers.Adam(name="adam_optimizer",learning_rate=self.get_learning_rate),loss=[NetworkLoss( "loss_function",2),NetworkLoss( "loss_function",4),
-        #                      NetworkLoss( "loss_function",8),NetworkLoss( "loss_function",16)])
-        # _model.summary()
-        
-        # x_train, y_train = loader.get_prepared_data()
-        # steps_per_epoch=cfg.ITERATIONS
-        # self.model.fit(x_train,[y_train,y_train,y_train,y_train],2,epochs=30)
-        # self.network_loss = [NetworkLoss( "loss_function",2),NetworkLoss( "loss_function",4),
-        #                      NetworkLoss( "loss_function",8),NetworkLoss( "loss_function",16)]
-        # self.network_loss = NetworkLoss( "loss_function",2)
+        model = ObjectDetectionModel([3,3],'ObjectDetectionModel')
         self.train(loader,model)
         model.summary()
-        model.save_weights(cfg.MODEL_WEIGHTS)
         
 
-                      
-            
-    def save_results(self, maps, scale):
-        result = cv2.split(np.squeeze(maps,axis=0))
-        
-            
-        base_path = r".\.\result_test_s" + str(scale)
-        if not fw.check_and_create_folder(base_path):
-            print("Unable to create folder for results. Tried path: ", base_path)
-            return
-        
-        path = base_path+r"\response_map_0.jpg"
-        cv2.imwrite(path, (maps[0,:,:,0] - maps[0,:,:,0].min()) * (255/(maps[0,:,:,0].max() - maps[0,:,:,0].min())))
-        path = base_path+r"\response_map_1.jpg"
-        cv2.imwrite(path, 255* result[1])
-        path = base_path+r"\response_map_2.jpg"
-        cv2.imwrite(path, 255*result[2])
-        path = base_path+r"\response_map_3.jpg"
-        cv2.imwrite(path, 255*result[3])
-        path = base_path+r"\response_map_4.jpg"
-        cv2.imwrite(path, 255*result[4])
-        path = base_path+r"\response_map_5.jpg"
-        cv2.imwrite(path, 255*result[5])
-        path = base_path+r"\response_map_6.jpg"
-        cv2.imwrite(path, 255*result[6])
-        path = base_path+r"\response_map_7.jpg"
-        cv2.imwrite(path, 255*result[7])
+
 
 
     

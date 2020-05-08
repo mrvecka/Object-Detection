@@ -1,4 +1,4 @@
-from Network.object_detection_network import ObjectDetectionModel2
+from Network.object_detection_network import ObjectDetectionModel
 import config as cfg
 import numpy as np
 import cv2
@@ -17,11 +17,13 @@ def start_test():
 
     loader = load.Loader()
     # loader.load_data()
-    loader.load_specific_label("000025")
-    model = ObjectDetectionModel2([3,3],'Testing Object Detection Model')
+    loader.load_specific_label("000022")
+    loader.prepare_data(1)
+    model = ObjectDetectionModel([3,3],'Testing Object Detection Model')
     model.build((cfg.BATCH_SIZE,cfg.IMG_HEIGHT,cfg.IMG_WIDTH,cfg.IMG_CHANNELS))
     # model.build(input_shape=(None,cfg.IMG_HEIGHT,cfg.IMG_WIDTH,cfg.IMG_CHANNELS))               
     image_batch, label_batch, image_paths,image_names, calib_matrices = loader.get_test_data(1)
+    im, lbl, name = loader.get_train_data(1)
     
     model.load_weights(cfg.MODEL_WEIGHTS)
     # image_batch, label_batch, names = loader.get_train_data(1)
@@ -34,11 +36,11 @@ def start_test():
 
     # compare_results(out[0].numpy(), label_batch[0],2)
     # compare_results(out[1].numpy(), label_batch[1],4)
-    # compare_results(out[2].numpy(), label_batch[2],8)
+    # compare_results(out[2].numpy(), lbl[2],8)
     # compare_results(out[3].numpy(), label_batch[3],16)
     
     extract_and_show(out[0].numpy(), out[1].numpy(), out[2].numpy(), out[3].numpy(),
-                     label_batch, calib_matrices, image_paths)
+                    label_batch, calib_matrices, image_paths)
     # show_triangle(response_maps_2,response_maps_4,response_maps_8,response_maps_16,image_paths)
 
 
@@ -81,37 +83,37 @@ def extract_and_show(response_maps_2, response_maps_4, response_maps_8, response
                      label_batch, calib_matrices, image_paths):
 
 
-    b_boxes_model = extract.extract_bounding_box(
+    result = extract.extract_bounding_box(
         response_maps_2, label_batch[0], calib_matrices[0], image_paths[0], 2, 33)
-    nms_result = NMS.start_nms(b_boxes_model,2)
-    #evaluator.evaluate(nms_result)
-    if not nms_result is None:
-        nms_result.file_name = image_paths[0]
-        drawer.draw_bounding_boxes(nms_result, 2)
+    result = NMS.start_nms(result,2)
+    evaluator.evaluate(result)
+    if not result is None:
+        result.file_name = image_paths[0]
+        drawer.draw_bounding_boxes(result, 2)
 
-    b_boxes_model = extract.extract_bounding_box(
+    result = extract.extract_bounding_box(
         response_maps_4, label_batch[0], calib_matrices[0], image_paths[0], 4, 66)
-    nms_result = NMS.start_nms(b_boxes_model,4)
-    #evaluator.evaluate(nms_result)
-    if not nms_result is None:
-        nms_result.file_name = image_paths[0]
-        drawer.draw_bounding_boxes(nms_result, 4)
+    result = NMS.start_nms(result,4)
+    evaluator.evaluate(result)
+    if not result is None:
+        result.file_name = image_paths[0]
+        drawer.draw_bounding_boxes(result, 4)
 
-    b_boxes_model = extract.extract_bounding_box(
+    result = extract.extract_bounding_box(
         response_maps_8, label_batch[0], calib_matrices[0], image_paths[0], 8, 133)
-    nms_result = NMS.start_nms(b_boxes_model,8)
-    #evaluator.evaluate(nms_result)
-    if not nms_result is None:
-        nms_result.file_name = image_paths[0]
-        drawer.draw_bounding_boxes(nms_result, 8)
+    result = NMS.start_nms(result,8)
+    evaluator.evaluate(result)
+    if not result is None:
+        result.file_name = image_paths[0]
+        drawer.draw_bounding_boxes(result, 8)
 
-    b_boxes_model = extract.extract_bounding_box(
+    result = extract.extract_bounding_box(
         response_maps_16, label_batch[0], calib_matrices[0], image_paths[0], 16, 266)
-    nms_result = NMS.start_nms(b_boxes_model,16)
-    #evaluator.evaluate(nms_result)
-    if not nms_result is None:
-        nms_result.file_name = image_paths[0]
-        drawer.draw_bounding_boxes(nms_result, 16)
+    result = NMS.start_nms(result,16)
+    evaluator.evaluate(result)
+    if not result is None:
+        result.file_name = image_paths[0]
+        drawer.draw_bounding_boxes(result, 16)
 
 
 def show_triangle(response_maps_2, response_maps_4, response_maps_8, response_maps_16, image_paths):
@@ -131,11 +133,34 @@ def compare_results(out, label, scale):
     label_prob = label[0,:,:,0]
     label_prob = (label_prob - label_prob.min()) * (255/(label_prob.max() - label_prob.min()))
     label_prob[label_prob < 150] = 0
+     
+    compared = label_prob - prob
+    compared = (compared - compared.min()) * (255/(compared.max() - compared.min()))
+    
+    # prob = cv2.resize(prob, (220,120), interpolation = cv2.INTER_AREA)
+    # label_prob = cv2.resize(label_prob, (220,120), interpolation = cv2.INTER_AREA)
+    # compared = cv2.resize(compared, (220,120))
     
     cv2.imshow("output",prob)
     cv2.imshow("label", label_prob)
+    cv2.imshow("compared", compared)
     
     cv2.waitKey()
+    
+    base_path = r".\result_compare_s" + str(scale)
+    if not fw.check_and_create_folder(base_path):
+        print("Unable to create folder for results. Tried path: ", base_path)
+        return
+    
+    path = base_path +r"\output.jpg"
+    cv2.imwrite(path, prob)
+    
+    path = base_path +r"\ground_truth.jpg"
+    cv2.imwrite(path, label_prob)
+    
+    path = base_path +r"\compared.jpg"
+    cv2.imwrite(path, compared)
+    
 
 
 if __name__ == "__main__":

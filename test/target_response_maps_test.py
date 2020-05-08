@@ -28,51 +28,52 @@ def GetObjectBounds(r, cr, bo, scale):
     
     return bound_above, bound_below, ideal_size
 
-def create_target_response_map( labels, width, height, channels, r, circle_ratio, boundaries, scale):
-                
+def create_target_response_map( labels, width, height, channels, radius, circle_ratio, boundaries, scale):
     # maps => array of shape (channels, orig_height, orig_width) 
-    maps = cv2.split(np.zeros((height,width,8)))
-    # self.index = 0
-    # result = tf.scan(self.scan_label_function, labels, initializer=0) 
-    bound_above, bound_below, ideal = GetObjectBounds(r,circle_ratio,boundaries,scale)
+    result = np.zeros((height,width,8))        
+    maps = cv2.split(result)
+
+    bound_above, bound_below, ideal = GetObjectBounds(radius,circle_ratio,boundaries,scale)
     for i in range(len(labels)):            
         label = labels[i]
         if label[0] == -1:
-            break
+            # 2. dimension of array have to be same acros 1. dimension, we complete the missing elements with -1, now they will be ignored
+            continue
         # 0       1       2       3       4       5       6     7           8           9
         # fblx    fbly    fbrx    fbry    rblx    rbly    ftly  center_x    center_y    largest_dim
         
-        #size = self.get_size_of_bounding_box(labels)
         if label[9] >= bound_below and label[9] <= bound_above:
             x = int(label[7] / scale)
             y = int(label[8] / scale)
             
-            scaling_ratio = 1.0 / scale
-            # print((self.orig_height,self.orig_width))
-            #radius = ((circle_ration / scale) * szie ) - 1
-            
-            cv2.circle(maps[0], (x, y), int(r), 1, -1)
+            scaling_ratio = 1.0 / scale                
+            cv2.circle(maps[0], ( x, y ), int(radius), 1, -1)
             cv2.GaussianBlur(maps[0], (3, 3), 100)
 
-            # x_acc = x * scaling_ratio
-            # y_acc = y * scaling_ratio
-            
-            for c in range(1,8):
-                
-                for l in range(-r,r,1):
-                    for j in range(-r,r,1):
+            for k in range(1,8):
+                for l in range(-radius,radius,1):
+                    for j in range(-radius,radius,1):
                         xp = x + j
                         yp = y + l
-                        
                         if xp >= 0 and xp < width and yp >= 0 and yp < height:
                             if maps[0][yp][xp] > 0.0:
-                                if c ==1 or c == 3 or c == 5:
-                                    maps[c][yp][xp] = 0.5 + (label[c-1] - x - j * scale) / ideal
-                                elif c == 2 or c == 4 or c == 6 or c == 7:
-                                    maps[c][yp][xp] = 0.5 + (label[c-1] - y - l * scale) / ideal
-
+                                if k ==1 or k == 3 or k == 5:
+                                    maps[k][yp][xp] = 0.5 + (label[k-1] - x - j * scale) / ideal
+                                elif k == 2 or k == 4 or k == 6 or k == 7:
+                                    maps[k][yp][xp] = 0.5 + (label[k-1] - y - l * scale) / ideal
     
-    return np.asarray(maps,dtype=np.float32)
+    
+    # stack created maps together
+    result[:,:,0] = maps[0]
+    result[:,:,1] = maps[1]
+    result[:,:,2] = maps[2]
+    result[:,:,3] = maps[3]
+    result[:,:,4] = maps[4]
+    result[:,:,5] = maps[5]
+    result[:,:,6] = maps[6]
+    result[:,:,7] = maps[7]
+    
+    return result
 
 
             
@@ -108,61 +109,62 @@ def test_target_map_creation(name):
 
     image_batch, labels_batch, image_paths,image_names, calib_matrices = loader.get_test_data(1)
     
-    maps = create_target_response_map(labels_batch[0], 128, 64, 8, 2,0.3, 0.25, 2)
-    target2 = tf.reshape(maps,(8,64,128)).numpy()
+    target2 = create_target_response_map(labels_batch[0], 128, 64, 8, 2,0.3, 0.25, 2)
+    bla = np.asarray(target2)
+    #target2 = tf.reshape(maps,(8,64,128)).numpy()
     maps = create_target_response_map(labels_batch[0], 64, 32, 8, 2,0.3, 0.25, 4)
-    target4 = tf.reshape(maps,(8,32,64)).numpy()
+    #target4 = tf.reshape(maps,(8,32,64)).numpy()
     maps = create_target_response_map(labels_batch[0], 32, 16, 8, 2,0.3, 0.25, 8)
-    target8 = tf.reshape(maps,(8,16,32)).numpy()
+    #target8 = tf.reshape(maps,(8,16,32)).numpy()
     maps = create_target_response_map(labels_batch[0], 16, 8, 8, 2,0.3, 0.25, 16)
-    target16 = tf.reshape(maps,(8,8,16)).numpy()
+    #target16 = tf.reshape(maps,(8,8,16)).numpy()
     
     tmp = cv2.resize(image_batch[0],(128,64),interpolation = cv2.INTER_AREA)
     cv2.imshow("original",tmp)
-    cv2.imshow("target2 1", target2[0,:,:])
-    cv2.imshow("target2 2", target2[1,:,:])
-    cv2.imshow("target2 3", target2[2,:,:])
-    cv2.imshow("target2 4", target2[3,:,:])
-    cv2.imshow("target2 5", target2[4,:,:])
-    cv2.imshow("target2 6", target2[5,:,:])
-    cv2.imshow("target2 7", target2[6,:,:])
-    cv2.imshow("target2 8", target2[7,:,:])
+    cv2.imshow("target2 1", target2[:,:,0])
+    cv2.imshow("target2 2", target2[:,:,1])
+    cv2.imshow("target2 3", target2[:,:,2])
+    cv2.imshow("target2 4", target2[:,:,3])
+    cv2.imshow("target2 5", target2[:,:,4])
+    cv2.imshow("target2 6", target2[:,:,5])
+    cv2.imshow("target2 7", target2[:,:,6])
+    cv2.imshow("target2 8", target2[:,:,7])
     
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
+    # cv2.waitKey(0)
+    # cv2.destroyAllWindows()
     
-    cv2.imshow("target4 1", target4[0,:,:])
-    cv2.imshow("target4 2", target4[1,:,:])
-    cv2.imshow("target4 3", target4[2,:,:])
-    cv2.imshow("target4 4", target4[3,:,:])
-    cv2.imshow("target4 5", target4[4,:,:])
-    cv2.imshow("target4 6", target4[5,:,:])
-    cv2.imshow("target4 7", target4[6,:,:])
-    cv2.imshow("target4 8", target4[7,:,:])
+    # cv2.imshow("target4 1", target4[0,:,:])
+    # cv2.imshow("target4 2", target4[1,:,:])
+    # cv2.imshow("target4 3", target4[2,:,:])
+    # cv2.imshow("target4 4", target4[3,:,:])
+    # cv2.imshow("target4 5", target4[4,:,:])
+    # cv2.imshow("target4 6", target4[5,:,:])
+    # cv2.imshow("target4 7", target4[6,:,:])
+    # cv2.imshow("target4 8", target4[7,:,:])
     
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
+    # cv2.waitKey(0)
+    # cv2.destroyAllWindows()
     
-    cv2.imshow("target8 1", target8[0,:,:])
-    cv2.imshow("target8 2", target8[1,:,:])
-    cv2.imshow("target8 3", target8[2,:,:])
-    cv2.imshow("target8 4", target8[3,:,:])
-    cv2.imshow("target8 5", target8[4,:,:])
-    cv2.imshow("target8 6", target8[5,:,:])
-    cv2.imshow("target8 7", target8[6,:,:])
-    cv2.imshow("target8 8", target8[7,:,:])
+    # cv2.imshow("target8 1", target8[0,:,:])
+    # cv2.imshow("target8 2", target8[1,:,:])
+    # cv2.imshow("target8 3", target8[2,:,:])
+    # cv2.imshow("target8 4", target8[3,:,:])
+    # cv2.imshow("target8 5", target8[4,:,:])
+    # cv2.imshow("target8 6", target8[5,:,:])
+    # cv2.imshow("target8 7", target8[6,:,:])
+    # cv2.imshow("target8 8", target8[7,:,:])
     
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
+    # cv2.waitKey(0)
+    # cv2.destroyAllWindows()
     
-    cv2.imshow("target16 1", target16[0,:,:])
-    cv2.imshow("target16 2", target16[1,:,:])
-    cv2.imshow("target16 3", target16[2,:,:])
-    cv2.imshow("target16 4", target16[3,:,:])
-    cv2.imshow("target16 5", target16[4,:,:])
-    cv2.imshow("target16 6", target16[5,:,:])
-    cv2.imshow("target16 7", target16[6,:,:])
-    cv2.imshow("target16 8", target16[7,:,:])
+    # cv2.imshow("target16 1", target16[0,:,:])
+    # cv2.imshow("target16 2", target16[1,:,:])
+    # cv2.imshow("target16 3", target16[2,:,:])
+    # cv2.imshow("target16 4", target16[3,:,:])
+    # cv2.imshow("target16 5", target16[4,:,:])
+    # cv2.imshow("target16 6", target16[5,:,:])
+    # cv2.imshow("target16 7", target16[6,:,:])
+    # cv2.imshow("target16 8", target16[7,:,:])
     
     cv2.waitKey(0)
     cv2.destroyAllWindows()
@@ -255,5 +257,5 @@ def test_target_map_creation(name):
 
 
 if __name__ == "__main__":    
-    test_target_map_creation("000001") 
+    test_target_map_creation("000008") 
 

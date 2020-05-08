@@ -15,53 +15,51 @@ def extract_bounding_box(result, labels, calib_matrix, img_path, scale, ideal):
     
     print("BOUNDING BOXES EXTRACTION STARTED ON SCALE ", scale)
     prob = result[0,:,:,0]
-    image = np.asmatrix(prob)
-    im_max = image.max()
+    prob = np.asmatrix(prob)
+    im_max = prob.max()
     thresh_value = (im_max * cfg.RESULT_TRESHOLD) / 100 
-    maps = threshold_result(prob, thresh_value)
+    prob = threshold_result(prob, thresh_value)
     
-    tmp = np.zeros((9,image.shape[0], image.shape[1]))
-    tmp[0] = prob
-    maps,object_count = denormalize_to_true_value(result, tmp, scale, ideal)
-    print("FOUND: ", object_count, " OBJECTS")
-    image_model = ResultBoxModel()
-    for y in range(image.shape[0]):
-        
-        for x in range(image.shape[1]):
+ 
+    found_boxes = []
+    for y in range(prob.shape[0]):       
+        for x in range(prob.shape[1]):
             # pixels
-            if maps[0][y,x] > 0:
-
-                fbl_x = maps[1][y,x]
-                fbl_y = maps[2][y,x]
-                fbr_x = maps[3][y,x]
-                fbr_y = maps[4][y,x]
-                rbl_x = maps[5][y,x]
-                rbl_y = maps[6][y,x]
-                ftl_y = maps[7][y,x]
-                
-                # if scale == 2:
-                #     dist = np.abs(fbl_y - ftl_y)
-                #     if dist < 18.92 or dist > 30.57:
-                #         continue
-                # if scale == 4:
-                #     dist = np.abs(fbl_y - ftl_y)
-                #     if dist < 25 or dist > 50:
-                #         continue
-                # if scale == 8:
-                #     dist = np.abs(fbl_y - ftl_y)
-                #     if dist < 45.33 or dist > 131.24:
-                #         continue
-                # if scale == 16:
-                #     dist = np.abs(fbl_y - ftl_y)
-                #     if dist < 50.04 or dist > 236.77:
-                #         continue                                                           
-                
-                box = run_projection(fbl_x, fbl_y, fbr_x, fbr_y, rbl_x, rbl_y, ftl_y, calib_matrix)
-                box.object_index = maps[8][y,x]
-                box.confidence = maps[0][y,x]
-                
-                image_model.boxes.append(box)
-              
+            if prob[y,x] > 0:
+                x, y = find_local_max_coordinates(prob, x, y, scale)
+                if not box_already_found(found_boxes, x, y):
+                    fbl_x = result[0, y, x, 1]
+                    fbl_y = result[0, y, x, 2]
+                    fbr_x = result[0, y, x, 3]
+                    fbr_y = result[0, y, x, 4]
+                    rbl_x = result[0, y, x, 5]
+                    rbl_y = result[0, y, x, 6]
+                    ftl_y = result[0, y, x, 7]
+                    found_boxes.append([x, y, prob[y,x], fbl_x, fbl_y, fbr_x, fbr_y, rbl_x, rbl_y, ftl_y])
+      
+    boxes = denormalize_to_value(found_boxes, scale, ideal)
+    print("FOUND: ", len(boxes), " OBJECTS")
+    image_model = ResultBoxModel()   
+                                                                            
+    for b in range(len(found_boxes)):
+        
+        x = found_boxes[b][0]
+        y = found_boxes[b][1]
+        confidence = found_boxes[b][2]
+        fbl_x = found_boxes[b][3]
+        fbl_y = found_boxes[b][4]
+        fbr_x = found_boxes[b][5]
+        fbr_y = found_boxes[b][6]
+        rbl_x = found_boxes[b][7]
+        rbl_y = found_boxes[b][8]
+        ftl_y = found_boxes[b][9]
+        
+        box = run_projection(fbl_x, fbl_y, fbr_x, fbr_y, rbl_x, rbl_y, ftl_y, calib_matrix)
+        box.object_index = b
+        box.confidence = confidence
+        
+        image_model.boxes.append(box)
+           
     for label in labels:
         box = run_projection(label[0], label[1], label[2], label[3], label[4], label[5], label[6], calib_matrix)
         box.object_index = 1000
@@ -147,48 +145,37 @@ def run_projection(fbl_x, fbl_y, fbr_x, fbr_y, rbl_x, rbl_y, ftl_y, calib_matrix
             
 def threshold_result(maps, threshold):
     
-    for y in range(len(maps)):
-        for x in range(len(maps[0])):
-            if maps[y,x] < threshold:
-                maps[y,x] = 0
-                maps[y,x] = 0
-                maps[y,x] = 0
-                maps[y,x] = 0
-                maps[y,x] = 0
-                maps[y,x] = 0
-                maps[y,x] = 0
-                maps[y,x] = 0
-                
+    maps[maps<threshold] = 0               
     return maps
 
-def denormalize_to_true_value(result, maps, scale, ideal):
-
-    object_count = 0
-    y_max = 0
-    x_max = 0
-    for y in range(len(maps[0])):
-        for x in range(len(maps[0,y])):
-            if maps[0][y,x] > 0:
-                y_max, x_max = find_local_max_coordinates(maps[0], y,x, scale)
-                if y_max != 0 and x_max != 0:
-                    object_count += 1
-                    
-                # maps[c][yp][xp] = 0.5 + (label[c-1] - x - j * scale) / ideal
-                maps[1][y,x] = ideal * (result[0,y,x,1] - 0.5) + x_max + x / scale
-                maps[3][y,x] = ideal * (result[0,y,x,3] - 0.5) + x_max + x / scale
-                maps[5][y,x] = ideal * (result[0,y,x,5] - 0.5) + x_max + x / scale
+def denormalize_to_value(boxes, scale, ideal):
+    
+    for b in range(len(boxes)):
+        # [x, y, maps[0][y,x], fbl_x, fbl_y, fbr_x, fbr_y, rbl_x, rbl_y, ftl_y]
+        x = boxes[b][0] # this is also local max
+        y = boxes[b][1] # this is also local max
+        
+        # fbl_x
+        boxes[b][3] = ideal * (boxes[b][3] - 0.5) + x + x / scale
+        # fbl_y
+        boxes[b][4] = ideal * (boxes[b][4] - 0.5) + y + y / scale
+        
+        # fbr_x
+        boxes[b][5] = ideal * (boxes[b][5] - 0.5) + x + x / scale
+        # fbr_y
+        boxes[b][6] = ideal * (boxes[b][6] - 0.5) + y + y / scale
+        
+        # rbl_x
+        boxes[b][7] = ideal * (boxes[b][7] - 0.5) + x + x / scale
+        # rbl_y
+        boxes[b][8] = ideal * (boxes[b][8] - 0.5) + y + y / scale
+        
+        # ftl_y
+        boxes[b][9] = ideal * (boxes[b][9] - 0.5) + y + y / scale
+        
+    return boxes
                 
-                # maps[c][yp][xp] = 0.5 + (label[c-1] - y - i * scale) / ideal                
-                maps[2][y,x] = ideal * (result[0,y,x,2] - 0.5) + y_max + y / scale
-                maps[4][y,x] = ideal * (result[0,y,x,4] - 0.5) + y_max + y / scale
-                maps[6][y,x] = ideal * (result[0,y,x,6] - 0.5) + y_max + y / scale
-                maps[7][y,x] = ideal * (result[0,y,x,7] - 0.5) + y_max + y / scale
-                maps[8][y,x] = object_count
-                # (M - 0.5) - I + x + x_max*S
-                    
-    return maps, object_count
-                
-def find_local_max_coordinates(prob_map, y, x, scale):
+def find_local_max_coordinates(prob_map, x, y, scale):
     
     height = len(prob_map)
     width = len(prob_map[0])
@@ -217,7 +204,7 @@ def find_local_max_coordinates(prob_map, y, x, scale):
                     max_val = prob_map[_y,_x]
                     
                 
-    return y_max, x_max
+    return x_max, y_max
 
 def get_info_from_pgp(file_path):
     slash_index = file_path.rindex('\\')
@@ -237,6 +224,17 @@ def get_info_from_pgp(file_path):
                 return p, gp
                 
     return None, None
+
+def box_already_found(boxes, x, y):
+    
+    if len(boxes) == 0:
+        return False
+    
+    for i in range(len(boxes)):
+        if boxes[i][0] == x and boxes[i][1] == y:
+            return True
+    
+    return False
 
 def showResults(result, img_path, scale, ideal):
     

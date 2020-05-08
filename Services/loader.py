@@ -104,7 +104,7 @@ class Loader:
             
             # label
             labels = self._load_label(label_path, file_name, calib_matrix, width, height)
-            if labels is None:
+            if labels is None or len(labels) == 0:
                 continue
           
             data = DataModel()
@@ -124,74 +124,6 @@ class Loader:
         printProgressBar(amount_to_load, amount_to_load, prefix = 'Progress:', suffix = 'Complete', length = 50)
         print("Loaded: ",len(self.Data)," training files")
         
-    def load_3d_data(self):
-        """
-        Load data from files on specified path.
-        Image file name is formated to be "000000" with specified extension
-        
-        Returns:
-            Data are stored to properties
-        """
-        assert self.image_path != '', 'Image path not set. Nothing to work with. Check config file.'
-        assert self.label_path != '', 'Label path not set. Nothing to work with. Check config file.'
-        assert self.calib_path != '', 'Calibration path not set. Nothing to work with. Check config file.'
-        print('Loading training files')
-        
-        image_pathss = []
-        label_paths = []
-        calib_paths = []
-        
-        # in img_files are absolut paths
-        img_files = fw.get_all_files(self.image_path, self.image_extension)
-        if self.amount == -1:
-            amount_to_load = len(img_files)
-        else:
-            amount_to_load = self.amount
-        
-        for i in range(len(img_files)):
-            file_ = img_files[i]
-            dot_index = file_.find('.')
-            file_name = file_[:dot_index]
-            
-            image_path = self.image_path + '\\' + file_
-            label_path = self.label_path + '\\' + file_name + '.txt'
-            if not fw.check_file_exists(label_path):
-                continue
-                    
-            calib_path = self.calib_path + '\\' + file_name + '.txt'
-            if not fw.check_file_exists(calib_path):
-                continue
-            
-            image, width, height = self._load_image(image_path)
-            if image is None:
-                continue
-                
-            # calibration
-            calib_matrix = self.load_calibration(calib_path)
-            if calib_matrix is None:
-                continue
-            
-            # label
-            labels = self._load_label(label_path, file_name, calib_matrix, width, height)
-            if labels is None:
-                continue
-        
-            data = DataModel()
-            data.image = image
-            data.image_path = image_path
-            data.image_name = file_
-            data.labels = labels
-            data.calib_matrix = calib_matrix
-
-            self.Data.append(data)
-            if len(self.Data) == amount_to_load:
-                break
-            
-            printProgressBar(len(self.Data), amount_to_load, prefix = 'Progress:', suffix = 'Complete', length = 50)
-            
-        # self.create_pgp_file()
-        printProgressBar(amount_to_load, amount_to_load, prefix = 'Progress:', suffix = 'Complete', length = 50)
-        print("Loaded: ",len(self.Data)," training files")
 
     def _load_image(self, image_path):
         """
@@ -212,8 +144,8 @@ class Loader:
             return None
 
         resized = cv2.resize(im, (cfg.IMG_WIDTH,cfg.IMG_HEIGHT), interpolation=cv2.INTER_AREA) # opencv resize function takes as desired shape (width,height) !!!
-        normalized = h.normalize(resized)
-        return normalized, im.shape[1], im.shape[0]
+        #normalized = h.normalize(resized)
+        return resized, im.shape[1], im.shape[0]
 
     def _load_label(self, label_path, file_name, calib_matrix, width, height):
         """
@@ -242,20 +174,6 @@ class Loader:
         else:
             # if not exists try add 
             return self.load_one_label(label_path, file_name, calib_matrix, width, height)
-    
-    def _load_3d_label(self, label_path, file_name, calib_matrix, width, height):
-        """
-        Reads a label file to specific image.
-        Read only Car labels
-
-        Input:
-            label_path: Row-major stored label separated by spaces, first element is the label name
-            x: number of image
-        Returns:
-            LabelModel object
-        """
-        
-        return self.load_one_label(label_path, file_name, calib_matrix, width, height)
                 
     def load_calibration(self, calib_path):
         """
@@ -348,48 +266,13 @@ class Loader:
                 bb3_label = bb.create_bb3txt_object(label, file_name, calib_matrix, width, height)
                 labels.append(bb3_label)
             
-        if len(labels) == 0:
-            empty = bb.create_empty_object(file_name)
-            labels.append(empty)
-                        
-        bb.write_bb3_to_file(labels)
-        return labels
-        
-    def load_one_3d_label(self, label_path, file_name, calib_matrix, width, height):
-
-        labels = []
-        with open(label_path, 'r') as infile_label:
-
-            for line in infile_label:
-                line = line.rstrip('\n')
-                data = line.split(' ')
-
-                # First element of the data is the label. We don't want to process 'Misc' and
-                # 'DontCare' labels
-                if data[0] != 'Car': continue
-
-                # We do not want to include objects, which are occluded or truncated too much
-                if (int(data[2]) >= 2 or float(data[1]) > 0.75): continue
-
-                label = LabelModel()
-                label.label = data[0]
-                label.truncated = int(float(data[1]))
-                label.occluded = int(float(data[2]))
-                label.alpha = float(data[3])
-                label.x_top_left = int(float(data[4]))
-                label.y_top_left = int(float(data[5]))
-                label.x_bottom_right = int(float(data[6]))
-                label.y_bottom_right = int(float(data[7]))
-                label.dim_width = float(data[8])
-                label.dim_height = float(data[9])
-                label.dim_length = float(data[10])
-                label.location_x = float(data[11])
-                label.location_y = float(data[12])
-                label.location_z = float(data[13])
-                label.rotation = float(data[14])
-
-                labels.append(label)
-            
+        # if len(labels) == 0:
+        #     empty = bb.create_empty_object(file_name)
+        #     labels.append(empty)
+          
+        if len(labels) != 0:
+            bb.write_bb3_to_file(labels)
+                          
         return labels
             
     def load_specific_label(self, file_name):
@@ -419,8 +302,35 @@ class Loader:
         data.labels = labels
         data.calib_matrix = calib_matrix
 
-        self.Data.append(data)
-           
+        self.Data.append(data)   
+      
+    def prepare_data(self, batch_size):
+        data = random.sample(self.Data, batch_size)
+        result_image = []
+        result_image_names = []
+        gt_2 = []
+        gt_4 = []
+        gt_8 = []
+        gt_16 = []
+        for x in range(batch_size):
+            if x >= batch_size:
+                break
+            result_image.append(data[x].image)
+            scale2, scale4, scale8, scale16 = self.create_ground_truth(self.labels_array_for_training(data[x].labels)) 
+            gt_2.append(scale2)
+            gt_4.append(scale4)
+            gt_8.append(scale8)
+            gt_16.append(scale16)
+            result_image_names.append(data[x].image_name)
+
+            
+        #result_label = self.complete_uneven_arrays(result_label)
+
+        self.result_images = np.asarray(result_image)
+        self.ground_truths = [np.asarray(gt_2), np.asarray(gt_4), np.asarray(gt_8), np.asarray(gt_16)]
+        self.image_names = np.asarray(result_image_names)
+
+        #return np.asarray(result_image), [np.asarray(gt_2), np.asarray(gt_4), np.asarray(gt_8), np.asarray(gt_16)], np.asarray(result_image_names)
            
     def get_train_data(self, batch_size):
         
@@ -443,7 +353,7 @@ class Loader:
             result_image_names.append(data[x].image_name)
 
             
-        #result_label = self.complete_uneven_arrays(result_label)
+        # result_label = self.complete_uneven_arrays(result_label)
 
         return np.asarray(result_image), [np.asarray(gt_2), np.asarray(gt_4), np.asarray(gt_8), np.asarray(gt_16)], np.asarray(result_image_names)
     
@@ -452,7 +362,7 @@ class Loader:
         scale4 = self.create_target_response_map(label,64,32,cfg.RADIUS,cfg.CIRCLE_RATIO,cfg.BOUNDARIES,4)        
         scale8 = self.create_target_response_map(label,32,16,cfg.RADIUS,cfg.CIRCLE_RATIO,cfg.BOUNDARIES,8)        
         scale16 = self.create_target_response_map(label,16,8,cfg.RADIUS,cfg.CIRCLE_RATIO,cfg.BOUNDARIES,16)
-        
+        # np.save('scale2.npy', scale2)
         return scale2, scale4, scale8, scale16
 
     def GetObjectBounds(self,radius,circle_ratio,boundaries,scale):
@@ -477,6 +387,7 @@ class Loader:
         for i in range(len(labels)):            
             label = labels[i]
             if label[0] == -1:
+                # 2. dimension of array have to be same acros 1. dimension, we complete the missing elements with -1, now they will be ignored
                 continue
             # 0       1       2       3       4       5       6     7           8           9
             # fblx    fbly    fbrx    fbry    rblx    rbly    ftly  center_x    center_y    largest_dim
@@ -621,18 +532,8 @@ def printProgressBar (iteration, total, prefix = '', suffix = '', decimals = 1, 
     
 if __name__ == '__main__':
     loader = Loader()
-    loader.load_specific_label("000025")
-    image, label, name = loader.get_train_data(1)
-    
-    for i in range(10):
-        cv2.imshow("label 2", label[0][0,:,:,0])
-        cv2.imshow("label 4", label[1][0,:,:,0])
-        cv2.imshow("label 8", label[2][0,:,:,0])
-        cv2.imshow("label 16", label[3][0,:,:,0])
-        cv2.waitKey()
-        # cv2.destroyWindows()
-        
-    # ba, bs, bd = loader.get_train_data(64)
-    # print(ba)
+    # loader.load_specific_label("000008")
+    loader.load_data()
+
     
                  
