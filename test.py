@@ -4,6 +4,7 @@ import numpy as np
 import cv2
 import tensorflow as tf
 import Services.loader as load
+from Services.timer import Timer
 
 
 import Services.bb_extractor as extract
@@ -15,19 +16,35 @@ import Services.fileworker as fw
 
 def start_test():
 
+    if cfg.SPECIFIC_TEST_DATA == "":
+        print("Test data not specified!!! Check config file")
+        return
+    
     loader = load.Loader()
     # loader.load_data()
-    loader.load_specific_label("000022")
+    
+    loader.load_specific_label(cfg.SPECIFIC_TEST_DATA)
     loader.prepare_data(1)
-    model = ObjectDetectionModel([3,3],'Testing Object Detection Model')
-    model.build((cfg.BATCH_SIZE,cfg.IMG_HEIGHT,cfg.IMG_WIDTH,cfg.IMG_CHANNELS))
+    model = ObjectDetectionModel([3,3],'Testing Object Detection Model',1)
+    model.build((1,cfg.IMG_HEIGHT,cfg.IMG_WIDTH,cfg.IMG_CHANNELS))
     # model.build(input_shape=(None,cfg.IMG_HEIGHT,cfg.IMG_WIDTH,cfg.IMG_CHANNELS))               
     image_batch, label_batch, image_paths,image_names, calib_matrices = loader.get_test_data(1)
     im, lbl, name = loader.get_train_data(1)
     
-    model.load_weights(cfg.MODEL_WEIGHTS)
+    base_path = r".\model"
+    if not fw.check_dir_exists(base_path):
+        print("Weights for model not found. Tried path ", base_path)
+        print("In project folder create directory model which will contain model_weight.h5 file with saved weights")
+        return
+    
+    model.load_weights(base_path + r"\model_weights.h5")
     # image_batch, label_batch, names = loader.get_train_data(1)
+    t = Timer()
+    t.start()
     out = model(image_batch,False)
+    _ = t.stop()
+    t.get_formated_time()
+    print("Formated time ",t.get_formated_time())
     del model
     save_results(out[0].numpy(), 2)
     save_results(out[1].numpy(), 4)

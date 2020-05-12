@@ -2,16 +2,14 @@ import tensorflow as tf
 import config as cfg
 import cv2
 import numpy as np
-
-
 from tensorflow.python.framework import ops
+
 
 class NetworkLoss(tf.keras.losses.Loss):
     def __init__(self, loss_name, scale, reduction=tf.keras.losses.Reduction.AUTO):
         super().__init__(reduction=reduction, name=loss_name)
         self.weight_factor = cfg.WEIGHT_FACTOR
         self.scale = scale
-        self.batch = cfg.BATCH_SIZE
     
     def get_config(self):
         base_config = super().get_config()
@@ -20,20 +18,20 @@ class NetworkLoss(tf.keras.losses.Loss):
     
     @tf.function
     def call(self, y_true, y_pred):
-        y_pred = ops.convert_to_tensor(y_pred)
-        y_true = ops.convert_to_tensor(y_true)
+        # y_pred = ops.convert_to_tensor(y_pred)
+        # y_true = ops.convert_to_tensor(y_true)
         
         y_pred = tf.cast(y_pred,tf.float32)
         y_true = tf.cast(y_true,tf.float32)
-        #tf.config.experimental_run_functions_eagerly(True)
+        # tf.config.experimental_run_functions_eagerly(True)
         loss = self.run_for_scale(y_true,y_pred)
-        #tf.config.experimental_run_functions_eagerly(False)
+        # tf.config.experimental_run_functions_eagerly(False)
         return loss
         
     @tf.function
     def run_for_scale(self,y_true,y_pred):
         errors = []
-        for i in range(self.batch):          
+        for i in range(y_pred.shape[0]):          
             current_img = y_pred[i]
             current_lbl = y_true[i]
             img_error = self.object_loss(current_lbl, current_img)

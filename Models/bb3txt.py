@@ -47,7 +47,7 @@ def create_empty_object(file_name):
     
     return bb3
 
-def create_bb3txt_object(label, file_name, P, width, height) -> BB3Txt:
+def create_bb3txt_object(label, file_name, P, width, height):
     bb3 = BB3Txt()
     bb3.file_name = file_name
     bb3.label = label.label
@@ -97,7 +97,7 @@ def create_bb3txt_object(label, file_name, P, width, height) -> BB3Txt:
     
     return bb3
 
-def write_bb3_to_file(bb3_labels) -> None:
+def write_bb3_to_file(bb3_labels):
 
     bb3_path = cfg.BB3_FOLDER
     if not fwb.check_dir_exists(bb3_path):

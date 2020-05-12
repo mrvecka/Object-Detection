@@ -1,23 +1,33 @@
 import tensorflow as tf
 import cv2
+import sys
 import numpy as np
 import os
 import glob
 import random
 import time
 import datetime
+import copy
 
 
 
-# IMAGE_PATH = 'drive/My Drive/colab_data/images'
-# CALIB_PATH = 'drive/My Drive/colab_data/calib'
-# LABEL_PATH = 'drive/My Drive/colab_data/label'
-# BB3_FOLDER = 'drive/My Drive/colab_data/bb3'
+# IMAGE_PATH = 'drive/My Drive/object detection/colab_data/images'
+# CALIB_PATH = 'drive/My Drive/object detection/colab_data/calib'
+# LABEL_PATH = 'drive/My Drive/object detection/colab_data/label'
+# BB3_FOLDER = 'drive/My Drive/object detection/colab_data/bb3'
+# MODEL_WEIGHTS = 'drive/My Drive/object detection/colab_data/model_weights.h5'
+# MODEL_JSON = 'drive/My Drive/object detection/colab_data/model_spec.json'
 
 IMAGE_PATH = r'D:\Documents\KITTI\images\training\image'
-CALIB_PATH = r'D:\Documents\KITTI\calib\training\calib'
-LABEL_PATH = r'D:\Documents\KITTI\label\training\label'
-BB3_FOLDER = r'D:\Documents\KITTI\bb3_files'
+BB3_PATH = r'D:\Documents\KITTI\bb3_files'
+
+MODEL_JSON = r"C:\Users\Lukas\Documents\Object detection 2.0\model\model_arch.json"
+MODEL_WEIGHTS = r"C:\Users\Lukas\Documents\Object detection 2.0\model\model_weights.h5"
+
+
+
+SAVE_MODEL_EVERY = 10
+UPDATE_LEARNING_RATE = [100, 200, 500]
 
 #percent
 RADIUS = 2
@@ -26,7 +36,7 @@ BOUNDARIES = 0.33
 
 # amount of data from dataset which will be loaded
 # -1 for all data
-DATA_AMOUNT = 200
+DATA_AMOUNT = 100
 
 IMAGE_EXTENSION = 'png'
 
@@ -36,9 +46,9 @@ IMG_WIDTH = 256
 IMG_HEIGHT = 128
 IMG_CHANNELS = 3 # based on channel number, image will be loaded colored or grayscaled
 
-LEARNING_RATE = 0.0001
-BATCH_SIZE = 32
-UPDATE_EDGE = 0.01
+LEARNING_RATE = 0.00001
+BATCH_SIZE = 8
+UPDATE_EDGE = 0.001
 MAX_ERROR = 0.001
 ITERATIONS = 100
 WEIGHT_FACTOR = 2.0
@@ -129,11 +139,11 @@ class NetworkLoss(tf.keras.losses.Loss):
     def call(self, labels, outputs):
         labels = tf.cast(labels,tf.float32)
         outputs = tf.cast(outputs,tf.float32)
+        tf.config.experimental_run_functions_eagerly(True)
         loss = self.run_for_scale(outputs,labels)
-        
+        tf.config.experimental_run_functions_eagerly(False)
         return loss
         
-    
     @tf.function
     def run_for_scale(self,images,labels):
         errors = []
@@ -145,26 +155,23 @@ class NetworkLoss(tf.keras.losses.Loss):
 
         loss = tf.reduce_sum(errors)
         return loss
-     
-    @tf.function   
-    def object_loss(self,target, image):
+    
+    @tf.function
+    def object_loss(self, target, image):
         width = image.shape.dims[1].value
         height = image.shape.dims[0].value
         channels = image.shape.dims[2].value
         
         # number of neurons in output layer
-        N = width * height
-
         N_p = tf.math.count_nonzero(target[:, :, 0])  
-        second_error = 0.0
-        error = 0.0
-        
+     
         initial = tf.constant(1,dtype=tf.float32, shape=(height,width))
         tmp_initial = initial
         condition = tf.greater(target[:,:, 0], tf.constant(0,dtype=tf.float32),name="greater")
         weight_factor_array = tf.add(initial, tf.where(condition, (tmp_initial + self.weight_factor - 1), tmp_initial, name="where_condition"), name="assign" )
 
         error = tf.reduce_sum(tf.multiply(weight_factor_array, tf.square(tf.subtract(target[:,:, 0], image[:, :, 0]))))
+        second_error = 0.0
         for c in range(1, channels):
             second_error += tf.reduce_sum(
                 tf.multiply(self.weight_factor,
@@ -172,152 +179,170 @@ class NetworkLoss(tf.keras.losses.Loss):
                                           tf.square(tf.subtract(target[:, :, c], image[:, :, c])))))
         
                     
-        error = (1/(2*N))*error  
+        N = width * height
+        error = (1/(2*N))*error 
+        
+        # there are no objects in some scales and N_p will be 0 so to prevent division by 0
+        # sec_error = tf.cast(1/ (2 * N_p * (channels -1)),dtype=tf.float32)*second_error
         sec_error = tf.cond(tf.equal(N_p,0),lambda: tf.constant(0,dtype=tf.float32, shape=()),lambda: tf.cast(1/ (2 * N_p * (channels -1)),dtype=tf.float32)*second_error )            
         error += sec_error
-       
-        return error
+        return tf.cast(error, dtype=tf.float32)
+
+class ODM_Input_Layer(tf.keras.layers.Layer):
+    
+    def __init__(self, name, dtype=tf.float32, **kwargs ):
+        super(ODM_Input_Layer, self).__init__(name=name,trainable=False,dtype=dtype,autocast=False, **kwargs)
+        self.layer_name = name
+
+    def get_config(self):
+        config = {'name':self.layer_name}
+        base_config = super().get_config()
+        return dict(list(base_config.items()) + list(config.items()))
+
+    def build(self,input_shape):
+        super(ODM_Input_Layer, self).build(input_shape)
+     
+    @tf.function   
+    def call(self, inputs):    
+        _min = tf.reduce_min(inputs)
+        _max = tf.reduce_max(inputs)
+        
+        result = tf.divide(tf.subtract(inputs,_min),tf.subtract(_max,_min))
+        result = tf.cast( result , dtype=tf.float32 ) 
+        return result
 
 class ODM_Conv2D_Layer(tf.keras.layers.Layer):
     
     def __init__(self, kernel, output_size, stride_size, dilation, name, activation=True,trainable=True,dtype=tf.float32, **kwargs ):
-        super(ODM_Conv2D_Layer, self).__init__(name=name,trainable=trainable,dtype=dtype, **kwargs)
+        super(ODM_Conv2D_Layer, self).__init__(name=name,trainable=trainable,dtype=dtype,autocast=False, **kwargs)
         self.kernel = kernel
         self.output_size = output_size
         self.stride_size = stride_size
         self.dilation = dilation
         self.layer_name = name
-        self.activation = activation
 
     def get_config(self):
-        config = {'kernel':self.kernel,'output_size':self.output_size,'stride_size':self.stride_size,'dilation':self.dilation,'name':self.name,'activation':self.activation}
+        config = {'name':self.layer_name,'kernel':self.kernel,'output_size':self.output_size,'stride_size':self.stride_size,'dilation':self.dilation,'activation':"ReLU"}
         base_config = super().get_config()
         return dict(list(base_config.items()) + list(config.items()))
 
     def build(self,input_shape):
-        self.kernel = self.add_weight(name=self.layer_name+"_weights", shape=(self.kernel[0],self.kernel[1],input_shape[3],self.output_size), initializer='uniform')
-        super().build(input_shape)
-        
-    @tf.function
-    def activation_condition(self):
-        return self.activation == True
-        
-    @tf.function
-    def call(self, inputs):
-        out = tf.nn.conv2d( inputs , self.kernel , strides=[ 1 , self.stride_size , self.stride_size , 1 ] ,
-                        dilations=[1, self.dilation, self.dilation, 1], padding="SAME",name=self.layer_name+"_convolution") 
-        return tf.cond(self.activation_condition(),lambda: tf.nn.relu(out, name=self.layer_name+"_activation"),lambda: out)
+        self._weights = self.add_weight(name=self.layer_name+"_weights", shape=(self.kernel[0],self.kernel[1],input_shape[3],int(self.output_size)), trainable= True, initializer=tf.keras.initializers.GlorotUniform())
+        self.bias = self.add_weight(name=self.layer_name+'_bias',shape=(self.output_size),initializer="zeros",trainable=True)
+        super(ODM_Conv2D_Layer, self).build(input_shape)
      
+    @tf.function   
+    def call(self, inputs):            
+        out = tf.nn.conv2d( inputs , self._weights , strides=[ 1 , int(self.stride_size) , int(self.stride_size) , 1 ] ,
+                        dilations=[1, int(self.dilation), int(self.dilation), 1], padding="SAME",name=self.layer_name+"_convolution") 
         
+        out = tf.nn.bias_add(out, self.bias)
+        return tf.keras.activations.relu(out)
+   
+class ODM_Conv2D_OutputLayer(tf.keras.layers.Layer):
+    
+    def __init__(self, name, trainable=True, dtype=tf.float32, **kwargs ):
+        super(ODM_Conv2D_OutputLayer, self).__init__(name=name,trainable=trainable,dtype=dtype, autocast=False, **kwargs)
+        self.layer_name = name
+
+    def get_config(self):
+        config = {'name':self.layer_name,'kernel':[1,1],'output_size':8,'stride_size':1,'dilation':1,'activation':"None",'use_bias':False}
+        base_config = super().get_config()
+        return dict(list(base_config.items()) + list(config.items()))
+
+    def build(self,input_shape):
+        self._weights = self.add_weight(name=self.layer_name+"_weights", shape=(1,1,input_shape[3],8), trainable= True, initializer='uniform')
+        super(ODM_Conv2D_OutputLayer, self).build(input_shape)
+     
+    @tf.function   
+    def call(self, inputs):            
+        #out = tf.nn.conv2d( inputs , self._weights , strides=[ 1, 1, 1, 1 ] , padding="SAME",name=self.layer_name+"_convolution") 
+        return tf.nn.conv2d( inputs , self._weights , strides=[ 1, 1, 1, 1 ] , padding="SAME",name=self.layer_name+"_convolution") 
+      
 class ODM_MaxPool_Layer(tf.keras.layers.Layer):
-    def __init__(self, pool_size, stride_size, name):
-        super(ODM_MaxPool_Layer, self).__init__(name=name)
+    def __init__(self, pool_size, stride_size, name, dtype=tf.float32, **kwargs ):
+        super(ODM_MaxPool_Layer, self).__init__(name=name, dtype=tf.float32, autocast=False, **kwargs )
         self.pool_size = pool_size
         self.stride_size = stride_size
         self.layer_name = name
 
     def get_config(self):
         base_config = super().get_config()
-        config = {'pool_size':self.pool_size,'stride_size':self.stride_size,'name':self.name}
+        config = {'name':self.layer_name,'pool_size':self.pool_size,'stride_size':self.stride_size,'padding':'SAME','type':'MaxPool2D'}
         return dict(list(base_config.items()) + list(config.items()))
+
+    def build(self,input_shape):
+        super(ODM_MaxPool_Layer, self).build(input_shape)
 
     @tf.function
     def call(self, inputs):
-        return tf.nn.max_pool2d( inputs , ksize=[ 1 , self.pool_size , self.pool_size , 1 ] ,
-                                 padding='SAME' , strides=[ 1 , self.stride_size , self.stride_size , 1 ], name=self.layer_name+'pool' )
+        return tf.nn.max_pool( inputs , ksize=[ 1 , self.pool_size , self.pool_size , 1 ] ,
+                                 padding='SAME' , strides=[ 1 , self.stride_size , self.stride_size , 1 ], name=self.layer_name+'_pool' )
 
 class ObjectDetectionModel(tf.keras.Model):
     
     def __init__(self, kernel_size,name, **kwargs):
-        super(ObjectDetectionModel, self).__init__(name=name, **kwargs )
+        super(ObjectDetectionModel, self).__init__(name=name, dtype=tf.float32, **kwargs )
         self.kernel_size = kernel_size
         self.model_name =name
 
         # self.layer1 = tf.keras.layers.Conv2D(64, [3,3], [1,1], "Same", dilation_rate=[1,1], activation="relu", kernel_initializer=tf.keras.initializers.GlorotUnifirm(),use_bias=True,trainable=True,name="layer1" )
-
+        self.input_layer = ODM_Input_Layer("input_layer")
         self.layer1 = ODM_Conv2D_Layer(kernel_size,64,1,1,"layer1")
-        self.layer1_normal = tf.keras.layers.BatchNormalization(name="layer1_normalization")
-        self.layer2 = ODM_Conv2D_Layer(kernel_size,64,2,1,"layer2")
-        self.layer2_normal = tf.keras.layers.BatchNormalization(name="layer2_normalization")
+        self.layer2 = ODM_Conv2D_Layer(kernel_size,64,2,2,"layer2")
         self.layer3 = ODM_Conv2D_Layer(kernel_size,128,1,1,"layer3")
-        self.layer3_normal = tf.keras.layers.BatchNormalization(name="layer3_normalization")
         self.layer4 = ODM_Conv2D_Layer(kernel_size,128,1,1,"layer4")
-        self.layer4_normal = tf.keras.layers.BatchNormalization(name="layer4_normalization")
         self.layer5 = ODM_Conv2D_Layer(kernel_size,128,1,3,"layer5")
-        self.layer5_normal = tf.keras.layers.BatchNormalization(name="layer5_normalization")
         self.layer6 = ODM_Conv2D_Layer(kernel_size,128,1,6,"layer6")  
-        self.layer6_normal = tf.keras.layers.BatchNormalization(name="layer6_normalization")   
-        self.output_2 = ODM_Conv2D_Layer([1,1],8,1,1,"output_2",activation=False) 
-        self.max_pool_layer_2 = ODM_MaxPool_Layer(2, 2, "layer7_maxpool")
+        self.output_2 = ODM_Conv2D_OutputLayer("output_2")
         
-        #self.block_2 = self.layer1.trainable_variables + self.layer2.trainable_variables + self.layer3.trainable_variables + self.layer4.trainable_variables + self.layer5.trainable_variables + self.layer6.trainable_variables + self.output_2.trainable_variables
-        
-        
+        self.layer7 = ODM_Conv2D_Layer(kernel_size,256,2, 1, "layer7")        
         self.layer8 = ODM_Conv2D_Layer(kernel_size,256, 1, 1, "layer8")
-        self.layer8_normal = tf.keras.layers.BatchNormalization(name="layer8_normalization")
         self.layer9 = ODM_Conv2D_Layer(kernel_size,256, 1, 1, "layer9")
-        self.layer9_normal = tf.keras.layers.BatchNormalization(name="layer9_normalization")
         self.layer10 = ODM_Conv2D_Layer(kernel_size,256, 1, 3, "layer10")
-        self.layer10_normal = tf.keras.layers.BatchNormalization(name="layer10_normalization")
-        self.output_4 = ODM_Conv2D_Layer([1,1],8,1,1,"output_4",activation=False) 
-        self.max_pool_layer_4 = ODM_MaxPool_Layer(2, 2, "layer11_maxpool")
+        self.output_4 = ODM_Conv2D_OutputLayer("output_4")
         
-        #self.block_4 = self.layer8.trainable_variables + self.layer9.trainable_variables + self.layer10.trainable_variables + self.output_4.trainable_variables
-
+        self.layer11 = ODM_Conv2D_Layer(kernel_size,512,2, 1, "layer11")
         self.layer12 = ODM_Conv2D_Layer(kernel_size,512, 1, 1, "layer12")
-        self.layer12_normal = tf.keras.layers.BatchNormalization(name="layer11_normalization")
         self.layer13 = ODM_Conv2D_Layer(kernel_size,512, 1, 1, "layer13")
-        self.layer13_normal = tf.keras.layers.BatchNormalization(name="layer12_normalization")
         self.layer14 = ODM_Conv2D_Layer(kernel_size,512, 1, 3, "layer14")
-        self.layer14_normal = tf.keras.layers.BatchNormalization(name="layer13_normalization")
-        self.output_8 = ODM_Conv2D_Layer([1,1],8,1,1,"output_8",activation=False) 
-        self.max_pool_layer_8 = ODM_MaxPool_Layer(2, 2, "layer15_maxpool")
-        
-        #self.block_8 = self.layer12.trainable_variables + self.layer13.trainable_variables + self.layer14.trainable_variables + self.output_8.trainable_variables
+        self.output_8 = ODM_Conv2D_OutputLayer("output_8")
             
+        self.layer15 = ODM_Conv2D_Layer(kernel_size,512,2, 1, "layer15")      
         self.layer16 = ODM_Conv2D_Layer(kernel_size,512, 1, 1, "layer16")
-        self.layer16_normal = tf.keras.layers.BatchNormalization(name="layer16_normalization")
         self.layer17 = ODM_Conv2D_Layer(kernel_size,512, 1, 1, "layer17")
-        self.layer17_normal = tf.keras.layers.BatchNormalization(name="layer17_normalization")
         self.layer18 = ODM_Conv2D_Layer(kernel_size,512, 1, 3, "layer18")
-        self.layer18_normal = tf.keras.layers.BatchNormalization(name="layer18_normalization")
-        self.output_16 = ODM_Conv2D_Layer([1,1],8,1,1,"output_16",activation=False) 
+        self.output_16 = ODM_Conv2D_OutputLayer( "output_16")
         
-        #self.block_16 = self.layer16.trainable_variables + self.layer17.trainable_variables + self.layer18.trainable_variables + self.output_16.trainable_variables
        
-    # def get_config(self):
-    #     layer_configs = []
-    #     for layer in self.layers:
-    #         layer_configs.append({
-    #             'class_name': layer.__class__.__name__,
-    #             'config': layer.get_config()
-    #         })
-    #     config = {
-    #         'name': self.model_name,
-    #         'layers': copy.copy(layer_configs),
-    #         "kernel_size": self.kernel_size
-    #     }
+    def get_config(self):
+        layer_configs = []
+        for layer in self.layers:
+            layer_configs.append({
+                'class_name': layer.__class__.__name__,
+                'config': layer.get_config()
+            })
+        config = {
+            'name': self.model_name,
+            'layers': copy.copy(layer_configs)
+        }
 
-    #     return config
+        return config
 
     @tf.function
     def call(self, input, training):
         
-        x = tf.cast( input , dtype=tf.float32 ) 
+        # !!! don't use normalization, not even on the start, it will ruin everything
+        x = self.input_layer(input) 
         x = self.layer1(x)
-        #x = self.layer1_normal(x, training)
         x = self.layer2(x)
-        #x = self.layer2_normal(x, training)
         x = self.layer3(x)
-        #x = self.layer3_normal(x, training)
         x = self.layer4(x)
-        #x = self.layer4_normal(x, training)
         x = self.layer5(x)
-        #x = self.layer5_normal(x, training)
         x = self.layer6(x)
-        #x = self.layer6_normal(x, training)
         self.data_2 = self.output_2(x)
         
+        # stack trainable variables for optimizers, one optimizer for one network block (scale)
         self.block_2 = self.layer1.trainable_variables 
         self.block_2 = self.block_2 + self.layer2.trainable_variables
         self.block_2 = self.block_2 + self.layer3.trainable_variables
@@ -326,46 +351,37 @@ class ObjectDetectionModel(tf.keras.Model):
         self.block_2 = self.block_2 + self.layer6.trainable_variables
         self.block_2 = self.block_2 + self.output_2.trainable_variables
 
-        x = self.max_pool_layer_2(x)
+        x = self.layer7(x)
         x = self.layer8(x)
-        #x = self.layer8_normal(x, training)
         x = self.layer9(x)
-        #x = self.layer9_normal(x, training)
         x = self.layer10(x)
-        #x = self.layer10_normal(x, training)
         self.data_4 = self.output_4(x)
         
-        self.block_4 = self.max_pool_layer_2.trainable_variables
+        self.block_4 = self.layer7.trainable_variables
         self.block_4 = self.block_4 + self.layer8.trainable_variables
         self.block_4 = self.block_4 + self.layer9.trainable_variables
         self.block_4 = self.block_4 + self.layer10.trainable_variables
         self.block_4 = self.block_4 + self.output_4.trainable_variables
         
-        x = self.max_pool_layer_4(x)
+        x = self.layer11(x)
         x = self.layer12(x)
-        #x = self.layer12_normal(x, training)
         x = self.layer13(x)
-        #x = self.layer13_normal(x, training)
         x = self.layer14(x)
-        #x = self.layer14_normal(x, training)
         self.data_8 = self.output_8(x)
         
-        self.block_8 = self.max_pool_layer_4.trainable_variables
+        self.block_8 = self.layer11.trainable_variables
         self.block_8 = self.block_8 + self.layer12.trainable_variables
         self.block_8 = self.block_8 + self.layer13.trainable_variables
         self.block_8 = self.block_8 + self.layer14.trainable_variables
         self.block_8 = self.block_8 + self.output_8.trainable_variables
         
-        x = self.max_pool_layer_8(x)
+        x = self.layer15(x)
         x = self.layer16(x)
-        #x = self.layer16_normal(x, training)
         x = self.layer17(x)
-        #x = self.layer17_normal(x, training)
         x = self.layer18(x)
-        #x = self.layer18_normal(x, training)
         self.data_16 = self.output_16(x)
         
-        self.block_16 = self.max_pool_layer_8.trainable_variables
+        self.block_16 = self.layer15.trainable_variables
         self.block_16 = self.block_16 + self.layer16.trainable_variables
         self.block_16 = self.block_16 + self.layer17.trainable_variables
         self.block_16 = self.block_16 + self.layer18.trainable_variables
@@ -373,17 +389,17 @@ class ObjectDetectionModel(tf.keras.Model):
 
         return [self.data_2, self.data_4, self.data_8, self.data_16]
     
-    
 class NetworkCreator():
     
     def __init__(self):
         self.BatchSize = BATCH_SIZE
+        
         self.learning = LEARNING_RATE
-
-        self.optimizer2 = tf.optimizers.Adam(name="adam_optimizer_2",learning_rate=self.get_learning_rate)
-        self.optimizer4 = tf.optimizers.Adam(name="adam_optimizer_4",learning_rate=self.get_learning_rate)
-        self.optimizer8 = tf.optimizers.Adam(name="adam_optimizer_8",learning_rate=self.get_learning_rate)
-        self.optimizer16 = tf.optimizers.Adam(name="adam_optimizer_16",learning_rate=self.get_learning_rate)
+        
+        self.optimizer2 = tf.optimizers.SGD(name="adam_optimizer_2",learning_rate=self.get_learning_rate, momentum=0.9)
+        self.optimizer4 = tf.optimizers.SGD(name="adam_optimizer_4",learning_rate=self.get_learning_rate, momentum=0.9)
+        self.optimizer8 = tf.optimizers.SGD(name="adam_optimizer_8",learning_rate=self.get_learning_rate, momentum=0.9)
+        self.optimizer16 = tf.optimizers.SGD(name="adam_optimizer_16",learning_rate=self.get_learning_rate, momentum=0.9)
         
         self.loss2 = NetworkLoss( "loss_function_2",2)
         self.loss4 = NetworkLoss( "loss_function_4",4)
@@ -405,8 +421,8 @@ class NetworkCreator():
 
         return loss
     
+    @tf.function
     def compute_gradient(self, model, inputs, targets):
-        #print(model.block_2)
         with tf.GradientTape(persistent= True) as tape:
 
             loss_value = self.loss(model, inputs, targets, training=True)
@@ -427,17 +443,25 @@ class NetworkCreator():
     def get_learning_rate(self):
         return self.learning
     
-    def continue_training(self, acc):           
+    def continue_training(self, acc):
+       
         if acc[0] > MAX_ERROR or acc[1] > MAX_ERROR or acc[2] > MAX_ERROR or acc[3] > MAX_ERROR:
+            return True
+        else:
+            return False 
+        
+    def loss_is_nan(self, acc):
+        if np.isnan(acc[0]) or np.isnan(acc[1]) or np.isnan(acc[2]) or np.isnan(acc[3]):
             return True
         else:
             return False 
     
     def train(self, loader, model):
         
+        tf.keras.backend.set_floatx('float32')
+        
         epoch = 1
         acc = [9,9,9,9]
-        errors = []
         t_global = Timer()
         t_global.start()
 
@@ -446,29 +470,46 @@ class NetworkCreator():
             t = Timer()
             t.start()
             for i in range(ITERATIONS):                
-                image_batch, labels_batch, names = loader.get_train_data(BATCH_SIZE) 
-                loss_value = self.compute_gradient(model,image_batch, labels_batch)              
+                image_batch, labels_batch, _ = loader.get_train_data(self.BatchSize) 
+                loss_value = self.compute_gradient(model,image_batch, labels_batch)
+                self.check_computed_loss(loss_value)
+                
                 epoch_loss_avg.append(loss_value)
 
             _ = t.stop()
             acc = np.mean(epoch_loss_avg, axis=0)
             print("Epoch {:d}: Loss 2: {:.6f}, Loss 4: {:.6f}, Loss 8: {:.6f}, Loss 16: {:.6f}  Epoch duration: ".format(epoch,acc[0],acc[1],acc[2],acc[3]) + t.get_formated_time())
-            # model.save_weights(cfg.MODEL_WEIGHTS)
-
-            if epoch == 30:
-                self.learning = self.learning / 10
-            if epoch == 80:
-                self.learning = self.learning / 10
-                
+            
+            self.save_model(model, epoch)
+            self.update_learning_rate(epoch)               
             epoch += 1
-                         
+                           
         _ = t_global.stop()
-        print(errors) 
+        self.save_model(model, 0)
+    
+    def check_computed_loss(self, loss_value):
+        if self.loss_is_nan(loss_value):
+            print("One of loss values is NaN, program will be terminated!")
+            print(loss_value)
+            print(names)
+            sys.exit()
      
+    def update_learning_rate(self, epoch):
+        if epoch in UPDATE_LEARNING_RATE:
+            self.learning = self.learning / 10
+
+    
+    def save_model(self, model, epoch):
+        if epoch % SAVE_MODEL_EVERY == 0:
+            model.save_weights(MODEL_WEIGHTS)
+            
+            model_json = model.to_json()
+            with open(MODEL_JSON, "w") as json_file:
+                json_file.write(model_json)
+    
      
     def start_train(self, loader):
         
-
         model = ObjectDetectionModel([3,3],'ObjectDetectionModel')
         self.train(loader,model)
         model.summary()
@@ -478,8 +519,8 @@ class Loader():
     def __init__(self):
         self.Data = []
         self.image_path = ''
-        self.label_path = ''
         self.calib_path = ''
+        self.bb3_path = ''
         self.amount = 0
         self.start_from = 0
         self.image_extension = ''
@@ -494,15 +535,11 @@ class Loader():
         else:
             print("Image path '"+ IMAGE_PATH +"' not found!!!")
             
-        if check_file_exists(LABEL_PATH):
-            self.label_path = LABEL_PATH
+        if check_file_exists(BB3_PATH):
+            self.bb3_path = BB3_PATH
         else:
-            print("Label path '"+ LABEL_PATH +"' not found!!!")  
+            print("Label path '"+ BB3_PATH +"' not found!!!")  
             
-        if check_file_exists(CALIB_PATH):
-            self.calib_path = CALIB_PATH
-        else:
-            print("Calibration path '"+ CALIB_PATH +"' not found!!!")
             
         self.amount = DATA_AMOUNT
         self.image_extension = IMAGE_EXTENSION
@@ -520,13 +557,11 @@ class Loader():
             Data are stored to properties
         """
         assert self.image_path != '', 'Image path not set. Nothing to work with. Check config file.'
-        assert self.label_path != '', 'Label path not set. Nothing to work with. Check config file.'
-        assert self.calib_path != '', 'Calibration path not set. Nothing to work with. Check config file.'
+        assert self.bb3_path != '', 'Label path not set. Nothing to work with. Check config file.'
         print('Loading training files')
         
         image_pathss = []
-        label_paths = []
-        calib_paths = []
+        bb3_paths = []
         
         # in img_files are absolut paths
         img_files = get_all_files(self.image_path, self.image_extension)
@@ -541,26 +576,18 @@ class Loader():
             file_name = file_[:dot_index]
             
             image_path = self.image_path + '/' + file_
-            label_path = self.label_path + '/' + file_name + '.txt'
-            if not check_file_exists(label_path):
+            bb3_path = self.bb3_path + '/' + file_name + '.txt'
+            if not check_file_exists(bb3_path):
                 continue
                     
-            calib_path = self.calib_path + '/' + file_name + '.txt'
-            if not check_file_exists(calib_path):
-                continue
             
             image, width, height = self._load_image(image_path)
             if image is None:
                 continue
-                
-            # calibration
-            calib_matrix = self.load_calibration(calib_path)
-            if calib_matrix is None:
-                continue
             
             # label
-            labels = self._load_label(label_path, file_name, calib_matrix, width, height)
-            if labels is None:
+            labels = self._load_label(bb3_path)
+            if labels is None or len(labels) == 0:
                 continue
           
             data = DataModel()
@@ -568,7 +595,6 @@ class Loader():
             data.image_path = image_path
             data.image_name = file_
             data.labels = labels
-            data.calib_matrix = calib_matrix
 
             self.Data.append(data)
             if len(self.Data) == amount_to_load:
@@ -593,38 +619,10 @@ class Loader():
             return None
 
         resized = cv2.resize(im, (IMG_WIDTH,IMG_HEIGHT), interpolation=cv2.INTER_AREA) # opencv resize function takes as desired shape (width,height) !!!
-        normalized = normalize(resized)
-        return normalized, im.shape[1], im.shape[0]
+        # normalized = normalize(resized)
+        return resized, im.shape[1], im.shape[0]
 
-    def load_calibration(self, calib_path):
-        """
-        Reads a camera matrix P (3x4) stored in the row-major scheme.
-
-        Input:
-            calib_path: Row-major stored matrix separated by spaces, first element is the matrix name
-            x: number of image
-        Returns:
-            camera matrix P 4x4
-        """
-
-        with open(calib_path, 'r') as infile_calib:
-            for line in infile_calib:
-                if line[:2] == 'P2':
-                    line_data = line.rstrip('\n')
-                    data = line_data.split(' ')
-
-                    if data[0] != 'P2:':
-                        print('ERROR: We need left camera matrix (P2)!')
-                        exit(1)
-
-                    P = np.asmatrix([[float(data[1]), float(data[2]),  float(data[3]),  float(data[4])],
-                                    [float(data[5]), float(data[6]),  float(data[7]),  float(data[8])],
-                                    [float(data[9]), float(data[10]), float(data[11]), float(data[12])]])
-                    return P
-
-        return None
-
-    def _load_label(self, label_path, file_name, calib_matrix, width, height):
+    def _load_label(self, file_path):
         """
         Reads a label file to specific image.
         Read only Car labels
@@ -639,9 +637,8 @@ class Loader():
         # check if bb3_files folder exists
         # if exists then load from this file they are pre processed to 33btxt format and ready to use
         # if not load kitti label and create bb3txt file, next time this file will be used
-        bb3_path = BB3_FOLDER       
-        bb3_file_path = bb3_path + '/' +file_name+'.txt'
-        result = self._load_from_bb3_folder(bb3_file_path)
+
+        result = self._load_from_bb3_folder(file_path)
         return result
     
     def _load_from_bb3_folder(self, path):
@@ -671,6 +668,30 @@ class Loader():
 
         return labels
     
+    def load_specific_label(self, file_name):
+            
+        image_path = IMAGE_PATH + '/' + file_name + '.png'
+        bb3_path = BB3_PATH + '/' + file_name + '.txt'
+        calib_path = CALIB_PATH + '/' + file_name + '.txt'
+        
+        if not check_file_exists(image_path):
+            assert "Path for image not found"
+        
+        if not check_file_exists(bb3_path):
+            assert "Path for label not found"
+                    
+        image, width, height = self._load_image(image_path)
+        labels = self._load_label( bb3_path)
+        
+        
+        data = DataModel()
+        data.image = image
+        data.image_path = image_path
+        data.image_name = file_name
+        data.labels = labels
+
+        self.Data.append(data) 
+    
     def get_train_data(self, batch_size):
         
         data = random.sample(self.Data, batch_size)
@@ -698,7 +719,7 @@ class Loader():
         scale4 = self.create_target_response_map(label,64,32,RADIUS,CIRCLE_RATIO,BOUNDARIES,4)        
         scale8 = self.create_target_response_map(label,32,16,RADIUS,CIRCLE_RATIO,BOUNDARIES,8)        
         scale16 = self.create_target_response_map(label,16,8,RADIUS,CIRCLE_RATIO,BOUNDARIES,16)
-        np.save('scale2.npy', scale2)
+        # np.save('scale2.npy', scale2)
         return scale2, scale4, scale8, scale16
 
     def GetObjectBounds(self,radius,circle_ratio,boundaries,scale):
@@ -768,16 +789,12 @@ class Loader():
             label_array.append([float(label.fbl_x), float(label.fbl_y), float(label.fbr_x), float(label.fbr_y), float(label.rbl_x), float(label.rbl_y), float(label.ftl_y), float(label.bb_center_x), float(label.bb_center_y), float(label.largest_dim)])
         
         return label_array
-    def complete_uneven_arrays(self, array, insert_val = -1.0):
-        lens = np.array([len(item) for item in array])
-        mask = lens[:,None] > np.arange(lens.max())
-        out = np.full((mask.shape[0],mask.shape[1],10),insert_val,dtype=np.float32)
-        out[mask] = np.concatenate(array)
-        return out
 
 
 loader = Loader()
+
 loader.load_data()
+# loader.load_specific_label('000008')
 print("loader done")
 nc = NetworkCreator()
 with tf.device('/device:GPU:0'):

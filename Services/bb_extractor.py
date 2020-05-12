@@ -26,16 +26,17 @@ def extract_bounding_box(result, labels, calib_matrix, img_path, scale, ideal):
         for x in range(prob.shape[1]):
             # pixels
             if prob[y,x] > 0:
-                x, y = find_local_max_coordinates(prob, x, y, scale)
-                if not box_already_found(found_boxes, x, y):
-                    fbl_x = result[0, y, x, 1]
-                    fbl_y = result[0, y, x, 2]
-                    fbr_x = result[0, y, x, 3]
-                    fbr_y = result[0, y, x, 4]
-                    rbl_x = result[0, y, x, 5]
-                    rbl_y = result[0, y, x, 6]
-                    ftl_y = result[0, y, x, 7]
-                    found_boxes.append([x, y, prob[y,x], fbl_x, fbl_y, fbr_x, fbr_y, rbl_x, rbl_y, ftl_y])
+                if is_local_max(prob, x, y):
+                    if not box_already_found(found_boxes, x, y):
+                        fbl_x = result[0, y, x, 1]
+                        fbl_y = result[0, y, x, 2]
+                        fbr_x = result[0, y, x, 3]
+                        fbr_y = result[0, y, x, 4]
+                        rbl_x = result[0, y, x, 5]
+                        rbl_y = result[0, y, x, 6]
+                        ftl_y = result[0, y, x, 7]
+                        found_boxes.append([x, y, prob[y,x], fbl_x, fbl_y, fbr_x, fbr_y, rbl_x, rbl_y, ftl_y])
+                    
       
     boxes = denormalize_to_value(found_boxes, scale, ideal)
     print("FOUND: ", len(boxes), " OBJECTS")
@@ -174,6 +175,37 @@ def denormalize_to_value(boxes, scale, ideal):
         boxes[b][9] = ideal * (boxes[b][9] - 0.5) + y + y / scale
         
     return boxes
+
+def is_local_max(img, x, y):
+    current = img[y,x]
+
+    loc_y = y-2
+    loc_x = x -2
+
+    if y -2 < 0:
+      loc_y = 0
+    if y + 2 > img.shape[0]:
+      loc_y - (y+2)-img.shape[0]
+
+    if x -2 < 0:
+      loc_x = 0
+    if x + 2 > img.shape[0]:
+      loc_x - (x + 2 )- img.shape[1]
+
+    area = img[loc_y:loc_y+5, loc_x:loc_x+5]
+    result = np.where(area == np.amax(area))
+    coord = list(zip(result[0], result[1]))[0]
+    max_index_col = coord[1]
+    max_index_row = coord[0]
+
+    new_x = x + max_index_col - 2
+    new_y = y + max_index_row - 2
+
+
+    if new_x == x and new_y == y:
+      return True
+    else:
+      return False
                 
 def find_local_max_coordinates(prob_map, x, y, scale):
     

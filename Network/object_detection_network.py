@@ -73,7 +73,6 @@ class ODM_Conv2D_OutputLayer(tf.keras.layers.Layer):
      
     @tf.function   
     def call(self, inputs):            
-        #out = tf.nn.conv2d( inputs , self._weights , strides=[ 1, 1, 1, 1 ] , padding="SAME",name=self.layer_name+"_convolution") 
         return tf.nn.conv2d( inputs , self._weights , strides=[ 1, 1, 1, 1 ] , padding="SAME",name=self.layer_name+"_convolution") 
       
 class ODM_MaxPool_Layer(tf.keras.layers.Layer):
@@ -98,13 +97,13 @@ class ODM_MaxPool_Layer(tf.keras.layers.Layer):
 
 class ObjectDetectionModel(tf.keras.Model):
     
-    def __init__(self, kernel_size,name, **kwargs):
+    def __init__(self, kernel_size, name, batch_size,  **kwargs):
         super(ObjectDetectionModel, self).__init__(name=name, dtype=tf.float32, **kwargs )
         self.kernel_size = kernel_size
         self.model_name =name
 
         # self.layer1 = tf.keras.layers.Conv2D(64, [3,3], [1,1], "Same", dilation_rate=[1,1], activation="relu", kernel_initializer=tf.keras.initializers.GlorotUnifirm(),use_bias=True,trainable=True,name="layer1" )
-        self.input_layer = ODM_Input_Layer("input_layer", input_shape=(cfg.BATCH_SIZE,128,256,3))
+        self.input_layer = ODM_Input_Layer("input_layer", input_shape=(batch_size,cfg.IMG_HEIGHT,cfg.IMG_WIDTH,cfg.IMG_CHANNELS))       
         self.layer1 = ODM_Conv2D_Layer(kernel_size,64,1,1,"layer1")
         self.layer2 = ODM_Conv2D_Layer(kernel_size,64,2,2,"layer2")
         self.layer3 = ODM_Conv2D_Layer(kernel_size,128,1,1,"layer3")

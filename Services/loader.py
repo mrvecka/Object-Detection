@@ -266,12 +266,12 @@ class Loader:
                 bb3_label = bb.create_bb3txt_object(label, file_name, calib_matrix, width, height)
                 labels.append(bb3_label)
             
-        # if len(labels) == 0:
-        #     empty = bb.create_empty_object(file_name)
-        #     labels.append(empty)
+        if len(labels) == 0:
+            empty = bb.create_empty_object(file_name)
+            labels.append(empty)
           
-        if len(labels) != 0:
-            bb.write_bb3_to_file(labels)
+
+        bb.write_bb3_to_file(labels)
                           
         return labels
             
