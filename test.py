@@ -12,10 +12,15 @@ import Services.drawer as drawer
 
 def start_test():
 
+    if cfg.SPECIFIC_TEST_DATA == "":
+        print("Test data not specified!!! Check config file")
+        return
+    
     loader = load.Loader()
-    # loader.load_data()
-    loader.load_specific_label("000003")
-    # loader.load_specific_label("001067")
+    
+    loader.load_specific_label(cfg.SPECIFIC_TEST_DATA)
+    loader.prepare_data(1)
+
     new_saver = tf.train.import_meta_graph(cfg.MODEL_PATH + '.meta', clear_devices=True)
     graph = tf.get_default_graph()
     input_graph_def = graph.as_graph_def()
@@ -25,10 +30,7 @@ def start_test():
         new_saver.restore(sess,cfg.MODEL_PATH)
             
         graph = tf.get_default_graph()
-        image_placeholder = graph.get_tensor_by_name(
-            "input_image_placeholder:0")
-        is_training = graph.get_tensor_by_name(
-            "input_is_training_placeholder:0") 
+        image_placeholder = graph.get_tensor_by_name("input_image_placeholder:0")
 
         predict_2 = graph.get_tensor_by_name("scale_2/output2/Conv2D:0")
         predict_4 = graph.get_tensor_by_name("scale_4/output4/Conv2D:0")
@@ -38,7 +40,7 @@ def start_test():
         image_batch, label_batch, image_paths,image_names, calib_matrices = loader.get_test_data(1)
 
         response_maps_2, response_maps_4, response_maps_8, response_maps_16 = sess.run(
-            [predict_2, predict_4, predict_8, predict_16], feed_dict={image_placeholder: image_batch,  is_training: False})
+            [predict_2, predict_4, predict_8, predict_16], feed_dict={image_placeholder: image_batch})
         save_results(response_maps_2, 2)
         save_results(response_maps_4, 4)
         save_results(response_maps_8, 8)
@@ -48,68 +50,76 @@ def start_test():
                          response_maps_16, label_batch, calib_matrices, image_paths)
         # show_triangle(response_maps_2,response_maps_4,response_maps_8,response_maps_16,image_paths)
 
-
 def save_results(maps, scale):
     result = cv2.split(np.squeeze(maps, axis=0))
-    tmp = (result[0] - result[0].min()) * \
-        (255/(result[0].max() - result[0].min()))
+    tmp = (result[0] - result[0].min()) * (255/(result[0].max() - result[0].min()))
     tmp[tmp < 150] = 0
-    path = r"C:\Users\Lukas\Documents\Object detection\result_test_s" + \
-        str(scale)+r"\response_map_0.jpg"
+    
+    base_path = r".\result_test_s" + str(scale)
+    if not fw.check_and_create_folder(base_path):
+        print("Unable to create folder for results. Tried path: ", base_path)
+        return
+    
+    path = base_path +r"\response_map_0.jpg"
     cv2.imwrite(path, tmp)
-    path = r"C:\Users\Lukas\Documents\Object detection\result_test_s" + \
-        str(scale)+r"\response_map_1.jpg"
-    cv2.imwrite(path, (maps[0, :, :, 1] - maps[0, :, :, 1].min())
-                * (255/(maps[0, :, :, 1].max() - maps[0, :, :, 1].min())))
-    path = r"C:\Users\Lukas\Documents\Object detection\result_test_s" + \
-        str(scale)+r"\response_map_2.jpg"
+    
+    path = base_path+r"\response_map_1.jpg"
+    cv2.imwrite(path, maps[0, :, :, 1])
+    
+    path = base_path+r"\response_map_2.jpg"
     cv2.imwrite(path, maps[0, :, :, 2])
-    path = r"C:\Users\Lukas\Documents\Object detection\result_test_s" + \
-        str(scale)+r"\response_map_3.jpg"
+    
+    path = base_path+r"\response_map_3.jpg"
     cv2.imwrite(path, maps[0, :, :, 3])
-    path = r"C:\Users\Lukas\Documents\Object detection\result_test_s" + \
-        str(scale)+r"\response_map_4.jpg"
+    
+    path = base_path+r"\response_map_4.jpg"
     cv2.imwrite(path, maps[0, :, :, 4])
-    path = r"C:\Users\Lukas\Documents\Object detection\result_test_s" + \
-        str(scale)+r"\response_map_5.jpg"
+    
+    path = base_path+r"\response_map_5.jpg"
     cv2.imwrite(path, maps[0, :, :, 5])
-    path = r"C:\Users\Lukas\Documents\Object detection\result_test_s" + \
-        str(scale)+r"\response_map_6.jpg"
+    
+    path = base_path+r"\response_map_6.jpg"
     cv2.imwrite(path, maps[0, :, :, 6])
-    path = r"C:\Users\Lukas\Documents\Object detection\result_test_s" + \
-        str(scale)+r"\response_map_7.jpg"
+    
+    path = base_path+r"\response_map_7.jpg"
     cv2.imwrite(path, maps[0, :, :, 7])
 
 
-def extract_and_show(response_maps_2, response_maps_4, response_maps_8, response_maps_16, label_batch, calib_matrices, image_paths):
+def extract_and_show(response_maps_2, response_maps_4, response_maps_8, response_maps_16, 
+                     label_batch, calib_matrices, image_paths):
 
-    b_boxes_model = extract.extract_bounding_box(
+
+    result = extract.extract_bounding_box(
         response_maps_2, label_batch[0], calib_matrices[0], image_paths[0], 2, 33)
-    nms_result = NMS.start_nms(b_boxes_model,2)
-    if not nms_result is None:
-        nms_result.file_name = image_paths[0]
-        drawer.draw_bounding_boxes(nms_result, 2)
+    result = NMS.start_nms(result,2)
+    evaluator.evaluate(result)
+    if not result is None:
+        result.file_name = image_paths[0]
+        drawer.draw_bounding_boxes(result, 2)
 
-    b_boxes_model = extract.extract_bounding_box(
+    result = extract.extract_bounding_box(
         response_maps_4, label_batch[0], calib_matrices[0], image_paths[0], 4, 66)
-    nms_result = NMS.start_nms(b_boxes_model,4)
-    if not nms_result is None:
-        nms_result.file_name = image_paths[0]
-        drawer.draw_bounding_boxes(nms_result, 4)
+    result = NMS.start_nms(result,4)
+    evaluator.evaluate(result)
+    if not result is None:
+        result.file_name = image_paths[0]
+        drawer.draw_bounding_boxes(result, 4)
 
-    b_boxes_model = extract.extract_bounding_box(
+    result = extract.extract_bounding_box(
         response_maps_8, label_batch[0], calib_matrices[0], image_paths[0], 8, 133)
-    nms_result = NMS.start_nms(b_boxes_model,8)
-    if not nms_result is None:
-        nms_result.file_name = image_paths[0]
-        drawer.draw_bounding_boxes(nms_result, 8)
+    result = NMS.start_nms(result,8)
+    evaluator.evaluate(result)
+    if not result is None:
+        result.file_name = image_paths[0]
+        drawer.draw_bounding_boxes(result, 8)
 
-    b_boxes_model = extract.extract_bounding_box(
+    result = extract.extract_bounding_box(
         response_maps_16, label_batch[0], calib_matrices[0], image_paths[0], 16, 266)
-    nms_result = NMS.start_nms(b_boxes_model,16)
-    if not nms_result is None:
-        nms_result.file_name = image_paths[0]
-        drawer.draw_bounding_boxes(nms_result, 16)
+    result = NMS.start_nms(result,16)
+    evaluator.evaluate(result)
+    if not result is None:
+        result.file_name = image_paths[0]
+        drawer.draw_bounding_boxes(result, 16)
 
 
 def show_triangle(response_maps_2, response_maps_4, response_maps_8, response_maps_16, image_paths):

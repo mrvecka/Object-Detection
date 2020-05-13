@@ -4,10 +4,6 @@ import numpy as np
 
 from Models.boxModel import BoxModel, ResultBoxModel, BoxesWithEthalons
 
-# Finding peak element in a 2D Array.
-treshold = cfg.NMS_TRESHOLD
-
-
 def start_nms(model: ResultBoxModel, scale: int):
 
     ethalons = compute_ethalons(model,scale*10)

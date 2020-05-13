@@ -1,178 +1,82 @@
 from __future__ import print_function
 import tensorflow as tf
-import Network.object_detection_network as odn
 import config as cfg
 import os
 import cv2
 import numpy as np
 import Services.freeze_graph as freeze
 import Services.helper as help
-from Services.lr_queue import LRQueue
 import math
+from Services.timer import Timer
+
 
 tf.logging.set_verbosity(tf.logging.ERROR)
 
 class NetworkCreator():
     
-    def __init__(self,):
-        self.device = cfg.DEVICE_NAME
-        self.is_training = tf.placeholder_with_default(cfg.IS_TRAINING, (), name='input_is_training_placeholder')  
-        # self.is_training = True
-        self.BatchSize = cfg.BATCH_SIZE
+    def __init__(self, batch):
+        self.BatchSize = batch
         self.weight_factor = cfg.WEIGHT_FACTOR
+        
+        self.learning_rate = cfg.LEARNING_RATE
+        self.update_edge = cfg.UPDATE_EDGE
         
         self.net_s_2 = None
         self.net_s_4 = None
         self.net_s_8 = None
         self.net_s_16 = None
-        
-        
-    def create_detection_network(self, input):
-        
-        # data = odn.normalize_input_data(input_batch, self.is_training)
-        
-        #create actual network
-        net = odn.create_detection_network_layer('layer1', input, [3, 3], 3, 64, 1, 1, self.is_training)
-        net = odn.normalization_layer(net, self.is_training)
-
-        net = odn.create_detection_network_layer('layer2', net, [3, 3], 64, 64, 2, 2, self.is_training)
-        net = odn.normalization_layer(net, self.is_training)
-        
-        net = odn.create_detection_network_layer('layer3', net, [3,3], 64, 128, 1, 1, self.is_training)
-        net = odn.normalization_layer(net, self.is_training)
-        net = odn.create_detection_network_layer('layer4', net, [3,3], 128, 128, 1, 1, self.is_training)
-        net = odn.normalization_layer(net, self.is_training)
-        net = odn.create_detection_network_layer('layer5', net, [3,3], 128, 128, 3, 1, self.is_training)
-        net = odn.normalization_layer(net, self.is_training)
-        net = odn.create_detection_network_layer('layer6', net, [3,3], 128, 128, 6, 1, self.is_training)
-        
-        # first output
-        net = odn.normalization_layer(net, self.is_training)
-        self.net_s_2 = odn.create_detection_network_output_layer('output2', net, [1, 1], 128, 8, 1, 1, self.is_training)
-                
-        net = odn.create_detection_network_pool_layer(net, [2,2],'layer7')
-        
-        net = odn.create_detection_network_layer('layer8', net, [3,3], 128, 256, 1, 1, self.is_training)
-        net = odn.normalization_layer(net, self.is_training)
-        net = odn.create_detection_network_layer('layer9', net, [3,3], 256, 256, 1, 1, self.is_training)
-        net = odn.normalization_layer(net, self.is_training)
-        net = odn.create_detection_network_layer('layer10', net, [3,3], 256, 256, 3, 1, self.is_training)
-        net = odn.normalization_layer(net, self.is_training)
-
-        self.net_s_4 = odn.create_detection_network_output_layer('output4', net, [1, 1], 256, 8, 1, 1, self.is_training)
-
-        
-        net = odn.create_detection_network_pool_layer(net, [2,2], 'layer11')
-        
-        net = odn.create_detection_network_layer('layer12', net, [3,3], 256, 512, 1, 1, self.is_training)
-        net = odn.normalization_layer(net, self.is_training)
-
-        net = odn.create_detection_network_layer('layer13', net, [3,3], 512, 512, 1, 1, self.is_training)
-        net = odn.normalization_layer(net, self.is_training)
-
-        net = odn.create_detection_network_layer('layer14', net, [3,3], 512, 512, 3, 1, self.is_training)
-        net = odn.normalization_layer(net, self.is_training)
-
-        self.net_s_8 = odn.create_detection_network_output_layer('output8', net, [1, 1], 512, 8, 1, 1, self.is_training)
-
-
-        net = odn.create_detection_network_pool_layer(net , [2,2], 'layer15')
-
-        net = odn.create_detection_network_layer('layer16', net, [3,3],512, 512, 1, 1, self.is_training)
-        net = odn.normalization_layer(net, self.is_training)
-
-        net = odn.create_detection_network_layer('layer17', net, [3,3], 512, 512, 1, 1, self.is_training)
-        net = odn.normalization_layer(net, self.is_training)
-
-        net = odn.create_detection_network_layer('layer18', net, [3,3], 512, 512, 3, 1, self.is_training)
-        net = odn.normalization_layer(net, self.is_training)
-        
-        self.net_s_16 = odn.create_detection_network_output_layer('output16', net, [1, 1], 512, 8, 1, 1, self.is_training)
 
     def create_detection_network_2(self,input):
         
-        
-        net = odn.normalization_layer(input, self.is_training)
         with tf.variable_scope("scale_2"):
-            net = tf.layers.conv2d(net,64,[3,3],(1,1),"SAME",dilation_rate=(1,1),activation="relu",kernel_initializer=tf.contrib.layers.xavier_initializer(),use_bias=True,trainable=True,name="layer1")
+            net = tf.layers.conv2d(input,64,[3,3],(1,1),"SAME",dilation_rate=(1,1),activation="relu",kernel_initializer=tf.contrib.layers.xavier_initializer(),use_bias=True,trainable=True,name="layer1")
             net = tf.layers.conv2d(net,64,[3,3],(2,2),"SAME",dilation_rate=(1,1),activation="relu",kernel_initializer=tf.contrib.layers.xavier_initializer(),use_bias=True,trainable=True,name="layer2")
-            #net = odn.normalization_layer(net, self.is_training)
             net = tf.layers.conv2d(net,128,[3,3],(1,1),"SAME",dilation_rate=(1,1),activation="relu",kernel_initializer=tf.contrib.layers.xavier_initializer(),use_bias=True,trainable=True,name="layer3")
-            #net = odn.normalization_layer(net, self.is_training)
             net = tf.layers.conv2d(net,128,[3,3],(1,1),"SAME",dilation_rate=(1,1),activation="relu",kernel_initializer=tf.contrib.layers.xavier_initializer(),use_bias=True,trainable=True,name="layer4")
-            #net = odn.normalization_layer(net, self.is_training)
             net = tf.layers.conv2d(net,128,[3,3],(1,1),"SAME",dilation_rate=(3,3),activation="relu",kernel_initializer=tf.contrib.layers.xavier_initializer(),use_bias=True,trainable=True,name="layer5")
-            #net = odn.normalization_layer(net, self.is_training)
             net = tf.layers.conv2d(net,128,[3,3],(1,1),"SAME",dilation_rate=(6,6),activation="relu",kernel_initializer=tf.contrib.layers.xavier_initializer(),use_bias=True,trainable=True,name="layer6")
-            #net = odn.normalization_layer(net, self.is_training)
-            # first output
+
             self.net_s_2 = tf.layers.conv2d(net,8,[1,1],(1,1),"SAME",dilation_rate=(1,1),activation=None,kernel_initializer=tf.contrib.layers.xavier_initializer(),use_bias=False,trainable=True,name="output2")
-        #net = odn.normalization_layer(net, self.is_training)
-        
-        net = tf.layers.max_pooling2d(net,(2,2),(2,2),"SAME",name="layer7")
-        # net = tf.layers.dropout(net, 0.5) 
         
         with tf.variable_scope("scale_4"):
+            net = tf.layers.conv2d(net,256,[3,3],(1,1),"SAME",dilation_rate=(1,1),activation="relu",kernel_initializer=tf.contrib.layers.xavier_initializer(),use_bias=True,trainable=True,name="layer7")
             net = tf.layers.conv2d(net,256,[3,3],(1,1),"SAME",dilation_rate=(1,1),activation="relu",kernel_initializer=tf.contrib.layers.xavier_initializer(),use_bias=True,trainable=True,name="layer8")
-            #net = odn.normalization_layer(net, self.is_training)
             net = tf.layers.conv2d(net,256,[3,3],(1,1),"SAME",dilation_rate=(1,1),activation="relu",kernel_initializer=tf.contrib.layers.xavier_initializer(),use_bias=True,trainable=True,name="layer9")
-            #net = odn.normalization_layer(net, self.is_training)
             net = tf.layers.conv2d(net,256,[3,3],(1,1),"SAME",dilation_rate=(3,3),activation="relu",kernel_initializer=tf.contrib.layers.xavier_initializer(),use_bias=True,trainable=True,name="layer10")
-            #net = odn.normalization_layer(net, self.is_training)
-
+            
             self.net_s_4 = tf.layers.conv2d(net,8,[1,1],(1,1),"SAME",dilation_rate=(1,1),activation=None,kernel_initializer=tf.contrib.layers.xavier_initializer(),use_bias=False,trainable=True,name="output4")
-        #net = odn.normalization_layer(net, self.is_training)
-
-        net = tf.layers.max_pooling2d(net,(2,2),(2,2),"SAME",name="layer11")
-        # net = tf.layers.dropout(net, 0.5) 
 
         with tf.variable_scope("scale_8"):
+            net = tf.layers.conv2d(net,512,[3,3],(1,1),"SAME",dilation_rate=(1,1),activation="relu",kernel_initializer=tf.contrib.layers.xavier_initializer(),use_bias=True,trainable=True,name="layer11")
             net = tf.layers.conv2d(net,512,[3,3],(1,1),"SAME",dilation_rate=(1,1),activation="relu",kernel_initializer=tf.contrib.layers.xavier_initializer(),use_bias=True,trainable=True,name="layer12")
-            #net = odn.normalization_layer(net, self.is_training)
             net = tf.layers.conv2d(net,512,[3,3],(1,1),"SAME",dilation_rate=(1,1),activation="relu",kernel_initializer=tf.contrib.layers.xavier_initializer(),use_bias=True,trainable=True,name="layer13")
-            #net = odn.normalization_layer(net, self.is_training)
             net = tf.layers.conv2d(net,512,[3,3],(1,1),"SAME",dilation_rate=(3,3),activation="relu",kernel_initializer=tf.contrib.layers.xavier_initializer(),use_bias=True,trainable=True,name="layer14")
-            #net = odn.normalization_layer(net, self.is_training)
-
-                    
+                  
             self.net_s_8 = tf.layers.conv2d(net,8,[1,1],(1,1),"SAME",dilation_rate=(1,1),activation=None,kernel_initializer=tf.contrib.layers.xavier_initializer(),use_bias=False,trainable=True,name="output8")
-        #net = odn.normalization_layer(net, self.is_training)
-
-        net = tf.layers.max_pooling2d(net,(2,2),(2,2),"SAME",name="layer15")
-        # net = tf.layers.dropout(net, 0.5) 
-        
-        
+       
         with tf.variable_scope("scale_16"):
+            net = tf.layers.conv2d(net,512,[3,3],(1,1),"SAME",dilation_rate=(1,1),activation="relu",kernel_initializer=tf.contrib.layers.xavier_initializer(),use_bias=True,trainable=True,name="layer15")
             net = tf.layers.conv2d(net,512,[3,3],(1,1),"SAME",dilation_rate=(1,1),activation="relu",kernel_initializer=tf.contrib.layers.xavier_initializer(),use_bias=True,trainable=True,name="layer16",)
-            #net = odn.normalization_layer(net, self.is_training)
             net = tf.layers.conv2d(net,512,[3,3],(1,1),"SAME",dilation_rate=(1,1),activation="relu",kernel_initializer=tf.contrib.layers.xavier_initializer(),use_bias=True,trainable=True,name="layer17")
-            #net = odn.normalization_layer(net, self.is_training)
             net = tf.layers.conv2d(net,512,[3,3],(1,1),"SAME",dilation_rate=(3,3),activation="relu",kernel_initializer=tf.contrib.layers.xavier_initializer(),use_bias=True,trainable=True,name="layer18")
-            #net = odn.normalization_layer(net, self.is_training)
 
             self.net_s_16 = tf.layers.conv2d(net,8,[1,1],(1,1),"SAME",dilation_rate=(1,1),activation=None,kernel_initializer=tf.contrib.layers.xavier_initializer(),use_bias=False,trainable=True,name="output16")
 
     def scan_image_function(self, image, label, radius,circle_ratio, boundaries, scale):
-        
-        # ground_truth = self.create_target_response_map(label, label_size, 2)
-        
+                
         width = image.shape.dims[1].value
         height = image.shape.dims[0].value
         channels = image.shape.dims[2].value
         
-        target = tf.py_func(self.create_target_response_map, [label, width, height, channels, radius,circle_ratio, boundaries, scale], [tf.float32])
-        # assert target.shape != shaped_output.shape, "While computing loss of NN shape of ground truth must be same as shape of network result"
-        
+        target = tf.py_func(self.create_target_response_map, [label, width, height, channels, radius,circle_ratio, boundaries, scale], [tf.float32])        
         target = tf.reshape(target,(channels,height,width))        
         
         # number of neurons in each output layer
         N = width * height
         
-        # count of positive pixels
-        
+        # count of positive pixels       
         N_p = tf.math.count_nonzero(image[:, :, 0])
-
-        
+     
         second_error = 0
         error = 0.0
                    
@@ -192,12 +96,10 @@ class NetworkCreator():
                     
         error = (1/(2*N))*error
         
-        tmp = 1/ (3 * N_p * (channels -1))
+        sec_error = tf.cond(tf.equal(N_p,0),lambda: tf.constant(0,dtype=tf.float32, shape=()),lambda: tf.cast(1/ (2 * N_p * (channels -1)),dtype=tf.float32)*second_error )            
         
-        error += tf.cast(tmp, tf.float32) * second_error
-        
-        
-        return error
+        error += sec_error
+        return tf.cast(error, dtype=tf.float32)
     
     def GetObjectBounds(self, r, cr, bo, scale):
         ideal_size = (2 * r + 1) / cr * scale
@@ -214,10 +116,7 @@ class NetworkCreator():
     
     def create_target_response_map(self, labels, width, height, channels, r, circle_ratio, boundaries, scale):
                 
-        # maps => array of shape (channels, orig_height, orig_width) 
         maps = cv2.split(np.zeros((height,width,8)))
-        # self.index = 0
-        # result = tf.scan(self.scan_label_function, labels, initializer=0) 
         bound_above, bound_below, ideal = self.GetObjectBounds(r,circle_ratio,boundaries,scale)
         for i in range(len(labels)):            
             label = labels[i]
@@ -231,15 +130,9 @@ class NetworkCreator():
                 x = int(label[7] / scale)
                 y = int(label[8] / scale)
                 
-                scaling_ratio = 1.0 / scale
-                # print((self.orig_height,self.orig_width))
-                #radius = ((circle_ration / scale) * szie ) - 1
-                
                 cv2.circle(maps[0], ( x, y ), int(r), 1, -1)
                 cv2.GaussianBlur(maps[0], (3, 3), 100)
 
-                # x_acc = x * scaling_ratio
-                # y_acc = y * scaling_ratio
                 for c in range(1,8):
                     
                     for l in range(-r,r,1):
@@ -340,18 +233,15 @@ class NetworkCreator():
 
     def train(self, loader):
             
-        graph_path = os.path.dirname(os.path.abspath(__file__)) + r"\graphs\tensorboard"
         iterations = cfg.ITERATIONS
         
         image_placeholder = tf.placeholder(tf.float32, [None, cfg.IMG_HEIGHT, cfg.IMG_WIDTH, cfg.IMG_CHANNELS],name="input_image_placeholder")
         labels_placeholder = tf.placeholder(tf.float32, [None, None, 10], name="input_label_placeholder")
         self.learning = tf.placeholder(tf.float32,(),name="input_learning_rate")
-        #self.is_training = tf.placeholder(tf.bool, name='input_is_training_placeholder')
-        #self.is_training = tf.placeholder_with_default(cfg.IS_TRAINING, (), name='input_is_training_placeholder')  
 
         self.create_detection_network_2(image_placeholder)        
         loss_2, loss_4, loss_8, loss_16 = self.network_loss_function(labels_placeholder)
-        loss = tf.reduce_sum([loss_2,loss_4,loss_8, loss_16],name="global_loss")    
+        loss = tf.reduce_mean([loss_2,loss_4,loss_8, loss_16],name="global_loss")    
         
         update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
         with tf.control_dependencies(update_ops):
@@ -365,136 +255,39 @@ class NetworkCreator():
 
             test_acc = 1
             epoch = 1
-            tf.train.write_graph(session.graph_def,r"C:\Users\Lukas\Documents\Object detection\model",'model.pbtxt')
-            writer = tf.summary.FileWriter(r"C:\Users\Lukas\Documents\Object detection\model", session.graph)
-            learning = cfg.LEARNING_RATE
-            update_edge = 0.1
-            print("Learning rate for AdamOtimizer", learning)
+            tf.train.write_graph(session.graph_def,r".\model",'model.pbtxt')
+            writer = tf.summary.FileWriter(r".\model", session.graph)
+            print("Learning rate for AdamOtimizer", self.learning_rate)
             while test_acc > cfg.MAX_ERROR:
-                for i in range(iterations):
+                t = Timer()
+                t.start()
+                for i in range(1):
                     image_batch, labels_batch, = loader.get_train_data(self.BatchSize)                    
                     session.run(optimize, 
-                                    feed_dict={image_placeholder: image_batch, labels_placeholder: labels_batch, self.is_training: True, self.learning: learning})
+                                    feed_dict={image_placeholder: image_batch, labels_placeholder: labels_batch, self.learning: self.learning_rate})
 
                 image_batch, labels_batch = loader.get_train_data(self.BatchSize)
                 test_acc = session.run(loss, 
-                                feed_dict={image_placeholder: image_batch, labels_placeholder: labels_batch, self.is_training: False, self.learning: learning})
+                                feed_dict={image_placeholder: image_batch, labels_placeholder: labels_batch, self.learning: self.learning_rate})
                 
-                print("Epoch:", (epoch), "test error: {:.5f}".format(test_acc))
+                _ = t.stop()
+                print("Epoch:", (epoch), "test error: {:.5f} time: ".format(test_acc)+t.get_formated_time())
+                self.update_learning_rate(epoch, test_acc)
                 epoch += 1
-
-                if math.isnan(test_acc):
-                    s_2, s_4, s_8, s_16 = session.run([self.net_s_2,self.net_s_4,self.net_s_8,self.net_s_16], 
-                                feed_dict={image_placeholder: image_batch[0], labels_placeholder: labels_batch[0], self.is_training: False, self.learning: learning})
-                    np.save(r"C:\Users\Lukas\Documents\Object detection\test\train_s_2.txt",s_2)
-                    np.save(r"C:\Users\Lukas\Documents\Object detection\test\train_s_4.txt",s_4)
-                    np.save(r"C:\Users\Lukas\Documents\Object detection\test\train_s_8.txt",s_8)
-                    np.save(r"C:\Users\Lukas\Documents\Object detection\test\train_s_16.txt",s_16)
-                    break
                 
-                if test_acc < update_edge:
-                    learning = learning / 10
-                    update_edge = update_edge / 10
-                    print("Learning rate updated to", learning)
-
-                # if epoch % 20 == 0:
-                #     learning = learning / 10
-                #     print("Learning rate updated to", learning)
-                
-            saver.save(session, cfg.MODEL_PATH)            
-            freeze.freeze_and_save()              
-                        
-    def test_loss(self, loader):
+            saver.save(session, r".\model")            
+            freeze.freeze_and_save()   
             
-        graph_path = os.path.dirname(os.path.abspath(__file__)) + r"\graphs\tensorboard"
-        iterations = cfg.ITERATIONS
-        
-        image_placeholder = tf.placeholder(tf.float32, [None, cfg.IMG_HEIGHT, cfg.IMG_WIDTH, cfg.IMG_CHANNELS],name="input_image_placeholder")
-        labels_placeholder = tf.placeholder(tf.float32, [None, None, 10], name="input_label_placeholder")
-        is_training = tf.placeholder(tf.bool, name='input_is_training_placeholder')
-        
-        self.create_detection_network_2(image_placeholder)
-        
-        with tf.variable_scope('loss_2'):
-            loss_s_2 = self.network_loss_function(self.net_s_2, labels_placeholder, 2, 0.3, 0.33, 2)
-            
-        with tf.variable_scope('loss_4'):    
-            loss_s_4 = self.network_loss_function(self.net_s_4, labels_placeholder, 2, 0.3, 0.33, 4)
-        
-        with tf.variable_scope('loss_8'):
-            loss_s_8 = self.network_loss_function(self.net_s_8, labels_placeholder, 2, 0.3, 0.33, 8)
-        
-        with tf.variable_scope('loss_16'):
-            loss_s_16 = self.network_loss_function(self.net_s_16, labels_placeholder, 2, 0.3, 0.33, 16)
-            
-        errors = tf.convert_to_tensor([loss_s_2, loss_s_4, loss_s_8, loss_s_16], dtype=tf.float32)
-        optimizer = tf.train.AdamOptimizer(name="adam_optimalizer",learning_rate=0.0001).minimize(errors)
-        
-        error_value = tf.reduce_mean(errors)
-        
-        saver = tf.train.Saver(name='model_saver')
-        init = tf.global_variables_initializer()
+    def update_learning_rate(self, epoch, acc):
+        if self.update_edge != -1 and acc < self.update_edge:
+            self.learning_rate = self.learning_rate / 10
+            self.update_edge = self.update_edge / 10
+            return
 
-
-
-
-
-        with tf.Session() as session:
-        # initialise the variables
-
-            session.run(init)
-
-            test_acc = 1
-            epoch = 1
-            
-            
-            while test_acc > cfg.MAX_ERROR:
-                for i in range(iterations):
-                    image_batch, labels_batch, = loader.get_train_data(self.BatchSize)                    
-                    session.run(optimizer, 
-                                    feed_dict={image_placeholder: image_batch, labels_placeholder: labels_batch, is_training: True})
-
-                image_batch, labels_batch, paths, _ = loader.get_test_data(self.BatchSize)
-                test_acc, s_2 = session.run([error_value,self.net_s_2], 
-                                feed_dict={image_placeholder: image_batch, labels_placeholder: labels_batch, is_training: False})
-                
-                print("Epoch:", (epoch), "test error: {:.5f}".format(test_acc))
-                if math.isnan(test_acc):
-                    for p in paths:
-                        print(p)
-                    
-                    for i in range(len(image_batch)):
-                        test_acc, s_2, s_4, s_8, s_16 = session.run([error_value,self.net_s_2,self.net_s_4,self.net_s_8,self.net_s_16], 
-                                feed_dict={image_placeholder: image_batch[i], labels_placeholder: labels_batch[i], is_training: False})
-                        
-                        if math.isnan(test_acc):
-                            np.save(r"C:\Users\Lukas\Documents\Object detection\test\\"+paths[i]+"s_2.txt",s_2)
-                            np.save(r"C:\Users\Lukas\Documents\Object detection\test\\"+paths[i]+"s_4.txt",s_4)
-                            np.save(r"C:\Users\Lukas\Documents\Object detection\test\\"+paths[i]+"s_8.txt",s_8)
-                            np.save(r"C:\Users\Lukas\Documents\Object detection\test\\"+paths[i]+"s_16.txt",s_16)
-                        
-                    break              
-            
-                epoch +=1  
-            
-    def save_results(self, maps, scale):
-        result = cv2.split(np.squeeze(maps,axis=0))
-        path = r"C:\Users\Lukas\Documents\Object detection\result_s"+str(scale)+r"\response_map_0.jpg"
-        cv2.imwrite(path, (maps[0,:,:,0] - maps[0,:,:,0].min()) * (255/(maps[0,:,:,0].max() - maps[0,:,:,0].min())))
-        path = r"C:\Users\Lukas\Documents\Object detection\result_s"+str(scale)+r"\response_map_1.jpg"
-        cv2.imwrite(path, 255* result[1])
-        path = r"C:\Users\Lukas\Documents\Object detection\result_s"+str(scale)+r"\response_map_2.jpg"
-        cv2.imwrite(path, 255*result[2])
-        path = r"C:\Users\Lukas\Documents\Object detection\result_s"+str(scale)+r"\response_map_3.jpg"
-        cv2.imwrite(path, 255*result[3])
-        path = r"C:\Users\Lukas\Documents\Object detection\result_s"+str(scale)+r"\response_map_4.jpg"
-        cv2.imwrite(path, 255*result[4])
-        path = r"C:\Users\Lukas\Documents\Object detection\result_s"+str(scale)+r"\response_map_5.jpg"
-        cv2.imwrite(path, 255*result[5])
-        path = r"C:\Users\Lukas\Documents\Object detection\result_s"+str(scale)+r"\response_map_6.jpg"
-        cv2.imwrite(path, 255*result[6])
-        path = r"C:\Users\Lukas\Documents\Object detection\result_s"+str(scale)+r"\response_map_7.jpg"
-        cv2.imwrite(path, 255*result[7])
+        if epoch in cfg.UPDATE_LEARNING_RATE:
+            self.learlearning_ratening = self.learning_rate / 10
+            return           
+ 
 
 
 
