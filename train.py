@@ -29,7 +29,6 @@ def StartTrain():
         nc.start_train(loader)
  
 
-
 def find_gpu(user_device):
     local_device_protos = device_lib.list_local_devices()
 
@@ -43,6 +42,10 @@ def find_gpu(user_device):
                 device_name = device.name
 
     if device_name != "":
+        gpu_devices = tf.config.experimental.list_physical_devices('GPU')
+        for device in gpu_devices:
+                tf.config.experimental.set_memory_growth(device, True)
+                
         print("Using device: ", device_name)
         return device_name
     

@@ -31,7 +31,7 @@ IMG_CHANNELS = 3 # based on channel number, image will be loaded colored or gray
 SAVE_MODEL_EVERY = 10
 # update learning rate on this epoch, 
 # current learning rate is divided by 10
-UPDATE_LEARNING_RATE = [100, 200, 40, 300, 800]
+UPDATE_LEARNING_RATE = [100, 200, 800]
 
 # type of optimizer, adam (default) or sgd
 OPTIMIZER = "adam"
@@ -45,7 +45,7 @@ UPDATE_EDGE = -1
 
 # determine the size of dataset
 # -1 for whole dataset
-DATA_AMOUNT = 20
+DATA_AMOUNT = 50
 
 # specify data which will be used for training or testing !!!! only one file
 # if not empty, DATA_AMOUNT is ignored and BATCH_SIZE = 1
@@ -73,7 +73,7 @@ WEIGHT_FACTOR = 2.0
 # ------------  TESTING ------------
 
 # during testing this property MUST be set, this is the image i want to test 
-SPECIFIC_TEST_DATA = "000008"
+SPECIFIC_TEST_DATA = "000049"
 
 # pixels with probability lower than specified value will be set to 0
 RESULT_TRESHOLD = 60

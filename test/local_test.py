@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 
+
 img = cv2.imread(r"C:\Users\Lukas\Documents\Object detection 2.0\result_test_s8\response_map_0.jpg", cv2.IMREAD_GRAYSCALE)
 
 for y in range(len(img)):

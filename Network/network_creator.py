@@ -190,6 +190,10 @@ class NetworkCreator():
     def start_train(self, loader):
         
         model = ObjectDetectionModel([3,3],'ObjectDetectionModel', self.batch_size)
+        
+        model.build((self.batch_size,cfg.IMG_HEIGHT,cfg.IMG_WIDTH,cfg.IMG_CHANNELS))
+        model.load_weights(r".\model\model_weights.h5")
+
         self.train(loader,model)
         model.summary()
         
