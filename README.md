@@ -16,11 +16,11 @@ Code is under master branch of this project.
 
 ### Prerequisites
 
-TensorFlow 1.14.0
-TensorBoard 1.14.0
-opencv-python 4.2.0.34
-numpy 1.18.3
-Python 3.6.7
+TensorFlow 1.14.0  
+TensorBoard 1.14.0  
+opencv-python 4.2.0.34  
+numpy 1.18.3  
+Python 3.6.7  
 
 ## Object detection with TF 2.1.0
 
@@ -33,15 +33,15 @@ by around 80%. 50 iterations with batch_size took only 6s. Code is under tf_2.0 
 
 ### Prerequisites
 
-TensorFlow 2.1.0
-TensorBoard 2.1.1
-TensorFlow-GPU 2.1.0
-tensorflow-probability 0.9.0
-opencv-python 4.2.0.34
-numpy 1.18.3
-Python 3.6.7
-CUDA 10.1
-cudnn 7.6.5
+TensorFlow 2.1.0  
+TensorBoard 2.1.1  
+TensorFlow-GPU 2.1.0  
+tensorflow-probability 0.9.0  
+opencv-python 4.2.0.34  
+numpy 1.18.3  
+Python 3.6.7  
+CUDA 10.1  
+cudnn 7.6.5  
 
 ## Results
 
@@ -59,26 +59,26 @@ To make program more scalable and get rid of editing files directly we use pytho
 There are lot of settings which could be set but i will not cover them all and recommend leave them as they are.
 
 ### Minimum training settings
-**IMAGE_PATH** - path to images from dataset
-**CALIB_PATH** - path to calibration files
-**LABEL_PATH** - path to label files from dataset (KITTI format)
+**IMAGE_PATH** - path to images from dataset  
+**CALIB_PATH** - path to calibration files  
+**LABEL_PATH** - path to label files from dataset (KITTI format)  
 **BB3_FOLDER** - path to upgraded label files (they are created during first run)
-	if path is empty files are not create, if you want to just create this files run .\Services\loader.py
-**IMG_WIDTH** - width of network input image (images are scaled during loading)
-**IMG_HEIGHT** - height of network input image
-**IMG_CHANNELS** - number of channel of image, allowed value 1(grayscale) or 3(colored)
-**SAVE_MODEL_EVERY** - model weights will be saved every N epochs
-**ITERATIONS** - count of iterations per epoch
-**BATCH_SIZE** - size of batch 
-**LEARNING_RATE** - learning rate of optimizer
-**UPDATE_LEARNING_RATE** - number of epoch when learning rate should be updated (lowered) ie [100, 200, 800]
-**OPTIMIZER** - type of optimizer, alowed values "adam" or "sgd"
-**DATA_AMOUNT** - determine the size of dataset which should be used for training, -1 for whole dataset
-**SPECIFIC_DATA** - train network on one image, file name should be provided
+	if path is empty files are not create, if you want to just create this files run .\Services\loader.py  
+**IMG_WIDTH** - width of network input image (images are scaled during loading)  
+**IMG_HEIGHT** - height of network input image  
+**IMG_CHANNELS** - number of channel of image, allowed value 1(grayscale) or 3(colored)  
+**SAVE_MODEL_EVERY** - model weights will be saved every N epochs  
+**ITERATIONS** - count of iterations per epoch  
+**BATCH_SIZE** - size of batch  
+**LEARNING_RATE** - learning rate of optimizer  
+**UPDATE_LEARNING_RATE** - number of epoch when learning rate should be updated (lowered) ie [100, 200, 800]  
+**OPTIMIZER** - type of optimizer, alowed values "adam" or "sgd"  
+**DATA_AMOUNT** - determine the size of dataset which should be used for training, -1 for whole dataset  
+**SPECIFIC_DATA** - train network on one image, file name should be provided  
 
 ### Minimum testing settings
-**SPECIFIC_TEST_DATA** - test network on one image, file name should be provided ie "000008" (KITTI)
-**RESULT_TRESHOLD** - result with probability lower than this value will be ignored and will not be shown
+**SPECIFIC_TEST_DATA** - test network on one image, file name should be provided ie "000008" (KITTI)  
+**RESULT_TRESHOLD** - result with probability lower than this value will be ignored and will not be shown  
 
 
 After setting up run train.py or test.py.
