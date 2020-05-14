@@ -1,3 +1,8 @@
+__date__   = '14/05/2020'
+__author__ = 'Lukas Mrvecka'
+__email__  = 'lukas.mrvecka.st@vsb.cz'
+__source__ = 'http://libornovak.com/files/master_thesis.pdf'
+
 import numpy as np
 import config as cfg
 import Services.fileworker as fwb

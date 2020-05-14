@@ -1,3 +1,7 @@
+__date__   = '14/05/2020'
+__author__ = 'Lukas Mrvecka'
+__email__  = 'lukas.mrvecka.st@vsb.cz'
+
 import config as cfg
 import numpy as np
 from Models.boxModel import BoxModel, ResultBoxModel
@@ -278,6 +282,7 @@ def showResults(result, img_path, scale, ideal):
         for x in range(image.shape[1]):
             
             if tmp[0][y,x] > 0:
+                # examples
                 # fbl_x = 766.9976689964997 
                 # fbl_y = 292.1749884809996
                 # fbr_x = 897.5057514572361 

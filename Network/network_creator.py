@@ -1,3 +1,10 @@
+__date__   = '14/05/2020'
+__author__ = 'Lukas Mrvecka'
+__email__  = 'lukas.mrvecka.st@vsb.cz'
+__source__ = 'http://libornovak.com/files/master_thesis.pdf'
+
+# network architecture is inspired by Libor Novak work and upgraded
+
 from __future__ import print_function
 import tensorflow as tf
 import config as cfg

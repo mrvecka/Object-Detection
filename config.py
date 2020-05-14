@@ -1,3 +1,7 @@
+__date__   = '14/05/2020'
+__author__ = 'Lukas Mrvecka'
+__email__  = 'lukas.mrvecka.st@vsb.cz'
+
 IMAGE_PATH = r'D:\Documents\KITTI\images\training\image'
 CALIB_PATH = r'D:\Documents\KITTI\calib\training\calib'
 LABEL_PATH = r'D:\Documents\KITTI\label\training\label'
@@ -31,7 +35,7 @@ IMG_CHANNELS = 3 # based on channel number, image will be loaded colored or gray
 SAVE_MODEL_EVERY = 10
 # update learning rate on this epoch, 
 # current learning rate is divided by 10
-UPDATE_LEARNING_RATE = [100, 200, 40, 300, 800]
+UPDATE_LEARNING_RATE = [100, 200, 300, 800]
 
 # type of optimizer, adam (default) or sgd
 OPTIMIZER = "adam"

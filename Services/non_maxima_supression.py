@@ -1,3 +1,7 @@
+__date__   = '14/05/2020'
+__author__ = 'Lukas Mrvecka'
+__email__  = 'lukas.mrvecka.st@vsb.cz'
+
 import cv2 as cv
 import config as cfg
 import numpy as np

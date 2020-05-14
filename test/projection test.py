@@ -1,3 +1,7 @@
+__date__   = '14/05/2020'
+__author__ = 'Lukas Mrvecka'
+__email__  = 'lukas.mrvecka.st@vsb.cz'
+
 import Services.loader as load
 import numpy as np
 from Models.boxModel import BoxModel, ResultBoxModel
