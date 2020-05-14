@@ -1,3 +1,7 @@
+__date__   = '14/05/2020'
+__author__ = 'Lukas Mrvecka'
+__email__  = 'lukas.mrvecka.st@vsb.cz'
+
 from Network.object_detection_network import ObjectDetectionModel
 import config as cfg
 import numpy as np

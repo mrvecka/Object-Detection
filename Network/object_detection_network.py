@@ -1,3 +1,10 @@
+__date__   = '14/05/2020'
+__author__ = 'Lukas Mrvecka'
+__email__  = 'lukas.mrvecka.st@vsb.cz'
+__source__ = 'http://libornovak.com/files/master_thesis.pdf'
+
+# network architecture is inspired by Libor Novak work and upgraded
+
 import config as cfg
 import cv2
 import numpy as np
@@ -51,7 +58,7 @@ class ODM_Conv2D_Layer(tf.keras.layers.Layer):
     @tf.function   
     def call(self, inputs):            
         out = tf.nn.conv2d( inputs , self._weights , strides=[ 1 , int(self.stride_size) , int(self.stride_size) , 1 ] ,
-                        dilations=[1, int(self.dilation), int(self.dilation), 1], padding="SAME",name=self.layer_name+"_convolution") 
+                        dilations=[1, int(self.dilation), int(self.dilation), int(self.dilation)], padding="SAME",name=self.layer_name+"_convolution") 
         
         out = tf.nn.bias_add(out, self.bias)
         return tf.keras.activations.relu(out)
@@ -104,31 +111,31 @@ class ObjectDetectionModel(tf.keras.Model):
 
         # self.layer1 = tf.keras.layers.Conv2D(64, [3,3], [1,1], "Same", dilation_rate=[1,1], activation="relu", kernel_initializer=tf.keras.initializers.GlorotUnifirm(),use_bias=True,trainable=True,name="layer1" )
         self.input_layer = ODM_Input_Layer("input_layer", input_shape=(batch_size,cfg.IMG_HEIGHT,cfg.IMG_WIDTH,cfg.IMG_CHANNELS))       
-        self.layer1 = ODM_Conv2D_Layer(kernel_size,64,1,1,"layer1")
-        self.layer2 = ODM_Conv2D_Layer(kernel_size,64,2,2,"layer2")
-        self.layer3 = ODM_Conv2D_Layer(kernel_size,128,1,1,"layer3")
-        self.layer4 = ODM_Conv2D_Layer(kernel_size,128,1,1,"layer4")
-        self.layer5 = ODM_Conv2D_Layer(kernel_size,128,1,3,"layer5")
-        self.layer6 = ODM_Conv2D_Layer(kernel_size,128,1,6,"layer6")  
-        self.output_2 = ODM_Conv2D_OutputLayer("output_2")
-        self.layer7 = ODM_Conv2D_Layer(kernel_size,256,2, 1, "layer7")        
+        self.layer1 = tf.keras.layers.Conv2D(64, kernel_size, (1,1), padding='SAME', activation="relu", dilation_rate=(1,1), name="layer1")
+        self.layer2 = tf.keras.layers.Conv2D(64, kernel_size, (2,2), padding='SAME', activation="relu", dilation_rate=(1,1), name="layer2")
+        self.layer3 = tf.keras.layers.Conv2D(128,kernel_size, (1,1), padding='SAME', activation="relu", dilation_rate=(3,3), name="layer3")
+        self.layer4 = tf.keras.layers.Conv2D(128,kernel_size, (1,1), padding='SAME', activation="relu", dilation_rate=(1,1), name="layer4")
+        self.layer5 = tf.keras.layers.Conv2D(128,kernel_size, (1,1), padding='SAME', activation="relu", dilation_rate=(3,3), name="layer5")
+        self.layer6 = tf.keras.layers.Conv2D(128,kernel_size, (1,1), padding='SAME', activation="relu", dilation_rate=(6,6), name="layer6")  
+        self.output_2 = tf.keras.layers.Conv2D(8, (1,1), (1,1), padding='SAME', activation=None, use_bias=False, name="output_2")
+        self.layer7 = tf.keras.layers.Conv2D(256, kernel_size, (2,2), padding='SAME', activation="relu", dilation_rate=(1,1), name="layer7")        
         
-        self.layer8 = ODM_Conv2D_Layer(kernel_size,256, 1, 1, "layer8")
-        self.layer9 = ODM_Conv2D_Layer(kernel_size,256, 1, 1, "layer9")
-        self.layer10 = ODM_Conv2D_Layer(kernel_size,256, 1, 3, "layer10")
-        self.output_4 = ODM_Conv2D_OutputLayer("output_4")
-        self.layer11 = ODM_Conv2D_Layer(kernel_size,512,2, 1, "layer11")
+        self.layer8 = tf.keras.layers.Conv2D(256, kernel_size, (1,1), padding='SAME', activation="relu", dilation_rate=(1,1), name="layer8")
+        self.layer9 = tf.keras.layers.Conv2D(256, kernel_size, (1,1), padding='SAME', activation="relu", dilation_rate=(1,1), name="layer9")
+        self.layer10 = tf.keras.layers.Conv2D(256, kernel_size, (1,1), padding='SAME', activation="relu", dilation_rate=(3,3), name="layer10")
+        self.output_4 = tf.keras.layers.Conv2D(8, (1,1), (1,1), padding='SAME', activation=None, use_bias=False, name="output_4")
+        self.layer11 = tf.keras.layers.Conv2D(512, kernel_size, (2,2), padding='SAME', activation="relu", dilation_rate=(1,1), name="layer11")
         
-        self.layer12 = ODM_Conv2D_Layer(kernel_size,512, 1, 1, "layer12")
-        self.layer13 = ODM_Conv2D_Layer(kernel_size,512, 1, 1, "layer13")
-        self.layer14 = ODM_Conv2D_Layer(kernel_size,512, 1, 3, "layer14")
-        self.output_8 = ODM_Conv2D_OutputLayer("output_8")
-        self.layer15 = ODM_Conv2D_Layer(kernel_size,512,2, 1, "layer15")      
+        self.layer12 = tf.keras.layers.Conv2D(512, kernel_size, (1,1), padding='SAME', activation="relu", dilation_rate=(1,1), name="layer12")
+        self.layer13 = tf.keras.layers.Conv2D(512, kernel_size, (1,1), padding='SAME', activation="relu", dilation_rate=(1,1), name="layer13")
+        self.layer14 = tf.keras.layers.Conv2D(512, kernel_size, (1,1), padding='SAME', activation="relu", dilation_rate=(3,3), name="layer14")
+        self.output_8 = tf.keras.layers.Conv2D(8, (1,1), (1,1), padding='SAME', activation=None, use_bias=False, name="output_8")
+        self.layer15 = tf.keras.layers.Conv2D(512, kernel_size, (2,2), padding='SAME', activation="relu", dilation_rate=(1,1), name="layer15")      
             
-        self.layer16 = ODM_Conv2D_Layer(kernel_size,512, 1, 1, "layer16")
-        self.layer17 = ODM_Conv2D_Layer(kernel_size,512, 1, 1, "layer17")
-        self.layer18 = ODM_Conv2D_Layer(kernel_size,512, 1, 3, "layer18")
-        self.output_16 = ODM_Conv2D_OutputLayer( "output_16")
+        self.layer16 = tf.keras.layers.Conv2D(512, kernel_size, (1,1), padding='SAME', activation="relu", dilation_rate=(1,1), name="layer16")
+        self.layer17 = tf.keras.layers.Conv2D(512, kernel_size, (1,1), padding='SAME', activation="relu", dilation_rate=(1,1), name="layer17")
+        self.layer18 = tf.keras.layers.Conv2D(512, kernel_size, (1,1), padding='SAME', activation="relu", dilation_rate=(3,3), name="layer18")
+        self.output_16 = tf.keras.layers.Conv2D(8, (1,1), (1,1), padding='SAME', activation=None, use_bias=False, name="output_16")
         
        
     def get_config(self):

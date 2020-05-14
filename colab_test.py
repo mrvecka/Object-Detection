@@ -1,3 +1,7 @@
+__date__   = '14/05/2020'
+__author__ = 'Lukas Mrvecka'
+__email__  = 'lukas.mrvecka.st@vsb.cz'
+
 import tensorflow as tf
 import cv2
 import sys
@@ -9,22 +13,12 @@ import time
 import datetime
 import copy
 
-
-
-# IMAGE_PATH = 'drive/My Drive/object detection/colab_data/images'
-# CALIB_PATH = 'drive/My Drive/object detection/colab_data/calib'
-# LABEL_PATH = 'drive/My Drive/object detection/colab_data/label'
-# BB3_FOLDER = 'drive/My Drive/object detection/colab_data/bb3'
-# MODEL_WEIGHTS = 'drive/My Drive/object detection/colab_data/model_weights.h5'
-# MODEL_JSON = 'drive/My Drive/object detection/colab_data/model_spec.json'
-
-IMAGE_PATH = r'D:\Documents\KITTI\images\training\image'
-BB3_PATH = r'D:\Documents\KITTI\bb3_files'
-
-MODEL_JSON = r"C:\Users\Lukas\Documents\Object detection 2.0\model\model_arch.json"
-MODEL_WEIGHTS = r"C:\Users\Lukas\Documents\Object detection 2.0\model\model_weights.h5"
-
-
+IMAGE_PATH = 'drive/My Drive/object detection/colab_data/images'
+CALIB_PATH = 'drive/My Drive/object detection/colab_data/calib'
+LABEL_PATH = 'drive/My Drive/object detection/colab_data/label'
+BB3_FOLDER = 'drive/My Drive/object detection/colab_data/bb3'
+MODEL_WEIGHTS = 'drive/My Drive/object detection/colab_data/model_weights.h5'
+MODEL_JSON = 'drive/My Drive/object detection/colab_data/model_spec.json'
 
 SAVE_MODEL_EVERY = 10
 UPDATE_LEARNING_RATE = [100, 200, 500]

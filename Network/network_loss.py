@@ -1,9 +1,13 @@
+__date__   = '14/05/2020'
+__author__ = 'Lukas Mrvecka'
+__email__  = 'lukas.mrvecka.st@vsb.cz'
+__source__ = 'http://libornovak.com/files/master_thesis.pdf'
+
 import tensorflow as tf
 import config as cfg
 import cv2
 import numpy as np
 from tensorflow.python.framework import ops
-
 
 class NetworkLoss(tf.keras.losses.Loss):
     def __init__(self, loss_name, scale, reduction=tf.keras.losses.Reduction.AUTO):

@@ -1,3 +1,7 @@
+__date__   = '14/05/2020'
+__author__ = 'Lukas Mrvecka'
+__email__  = 'lukas.mrvecka.st@vsb.cz'
+
 IMAGE_PATH = r'D:\Documents\KITTI\images\training\image'
 CALIB_PATH = r'D:\Documents\KITTI\calib\training\calib'
 LABEL_PATH = r'D:\Documents\KITTI\label\training\label'
@@ -7,10 +11,6 @@ BB3_FOLDER = r'D:\Documents\KITTI\bb3_files'
 RADIUS = 2
 CIRCLE_RATIO = 0.3
 BOUNDARIES = 0.25
-
-# amount of data from dataset which will be loaded
-# -1 for all data
-IMAGE_EXTENSION = 'png'
 
 #GROUND PLANE EXTRACTOR
 RANSAC_ITERATIONS = 10000
@@ -26,12 +26,17 @@ IMG_CHANNELS = 3 # based on channel number, image will be loaded colored or gray
 
 # ------------  TRAINING ------------
 
+# if model was once trained this will load weights from path .\model\model_weights.h5
+# and continue training 
+# be aware that if model architecture has changed model weights will not be load and training starts from scratch
+CONTINUE_TRAINING = True
+
 # save model every x epochs
 # model weights and json configuration will be saved
 SAVE_MODEL_EVERY = 10
 # update learning rate on this epoch, 
 # current learning rate is divided by 10
-UPDATE_LEARNING_RATE = [100, 200, 800]
+UPDATE_LEARNING_RATE = [100, 50, 2]
 
 # type of optimizer, adam (default) or sgd
 OPTIMIZER = "adam"
@@ -60,7 +65,7 @@ USE_GPU = True
 # if not empty, program check if device exists and use it or find another one if exists
 DEVICE_NAME = ""
 BATCH_SIZE = 8
-LEARNING_RATE = 0.0001
+LEARNING_RATE = 0.001
 MAX_ERROR = 0.001
 
 # number of iterations per epoch
@@ -73,7 +78,7 @@ WEIGHT_FACTOR = 2.0
 # ------------  TESTING ------------
 
 # during testing this property MUST be set, this is the image i want to test 
-SPECIFIC_TEST_DATA = "000049"
+SPECIFIC_TEST_DATA = "000025"
 
 # pixels with probability lower than specified value will be set to 0
 RESULT_TRESHOLD = 60

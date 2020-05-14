@@ -1,3 +1,7 @@
+__date__   = '14/05/2020'
+__author__ = 'Lukas Mrvecka'
+__email__  = 'lukas.mrvecka.st@vsb.cz'
+
 import tensorflow as tf
 import tensorflow.keras.backend as K
 from Network.network_loss import NetworkLoss
@@ -191,8 +195,11 @@ class NetworkCreator():
         
         model = ObjectDetectionModel([3,3],'ObjectDetectionModel', self.batch_size)
         
-        model.build((self.batch_size,cfg.IMG_HEIGHT,cfg.IMG_WIDTH,cfg.IMG_CHANNELS))
-        model.load_weights(r".\model\model_weights.h5")
+        if cfg.CONTINUE_TRAINING:
+            if fw.check_file_exists(r".\model\model_weights.h5"):
+                model.build((self.batch_size,cfg.IMG_HEIGHT,cfg.IMG_WIDTH,cfg.IMG_CHANNELS))
+                model.load_weights(r".\model\model_weights.h5")
+            
 
         self.train(loader,model)
         model.summary()
