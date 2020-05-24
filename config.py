@@ -78,7 +78,7 @@ WEIGHT_FACTOR = 2.0
 # ------------  TESTING ------------
 
 # during testing this property MUST be set, this is the image i want to test 
-SPECIFIC_TEST_DATA = "000025"
+SPECIFIC_TEST_DATA = "000049"
 
 # pixels with probability lower than specified value will be set to 0
 RESULT_TRESHOLD = 60

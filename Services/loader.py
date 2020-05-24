@@ -404,9 +404,13 @@ class Loader:
                 cv2.circle(maps[0], ( x, y ), int(radius), 1, -1)
                 cv2.GaussianBlur(maps[0], (3, 3), 100)
 
+                # radius extension, to make proper circle in other layers
+                # half of radius should be enough
+                re = int(radius/2) 
+
                 for k in range(1,8):
-                    for l in range(-radius,radius,1):
-                        for j in range(-radius,radius,1):
+                    for l in range(-radius - re,radius + re,1):
+                        for j in range(-radius - re,radius + re,1):
                             xp = x + j
                             yp = y + l
                             if xp >= 0 and xp < width and yp >= 0 and yp < height:
@@ -509,6 +513,54 @@ class Loader:
             f.write(text + '\n')
 
         f.close()
+        
+    def show_train_data(self, scale, lbl_position):
+        imgs, lbls, _ = loader.get_train_data(1)
+    
+        img = cv2.resize(imgs[0], (128,64), interpolation=cv2.INTER_AREA) # opencv resize function takes as desired shape (width,height) !!!
+        base_path = r".\gt_test" + str(scale)
+        if not fw.check_and_create_folder(base_path):
+            print("Unable to create folder for results. Tried path: ", base_path)
+            return
+        
+        path = base_path +r"\original.jpg"
+        # cv2.imshow("original image", img)
+        cv2.imwrite(path, img)
+        
+        scale2 = lbls[lbl_position][0] # scale 2
+        
+        layer = scale2[:,:,0]
+        path = base_path +r"\layer"+str(0)+".jpg"
+        cv2.imwrite(path, layer * 255)
+        
+        layer = scale2[:,:,1]
+        path = base_path +r"\layer"+str(1)+".jpg"
+        cv2.imwrite(path, layer * 255)
+        
+        layer = scale2[:,:,2]
+        path = base_path +r"\layer"+str(2)+".jpg"
+        cv2.imwrite(path, layer * 255)
+        
+        layer = scale2[:,:,3]
+        path = base_path +r"\layer"+str(3)+".jpg"
+        cv2.imwrite(path, layer * 255)
+        
+        layer = scale2[:,:,4]
+        path = base_path +r"\layer"+str(4)+".jpg"
+        cv2.imwrite(path, layer * 255)
+        
+        layer = scale2[:,:,5]
+        path = base_path +r"\layer"+str(5)+".jpg"
+        cv2.imwrite(path, layer * 255)
+        
+        layer = scale2[:,:,6]
+        path = base_path +r"\layer"+str(6)+".jpg"
+        cv2.imwrite(path, layer * 255)
+        
+        layer = scale2[:,:,7]
+        path = base_path +r"\layer"+str(7)+".jpg"
+        cv2.imwrite(path, layer * 255)
+        
                 
     
 def printProgressBar (iteration, total, prefix = '', suffix = '', decimals = 1, length = 100, fill = '█', printEnd = "\r"):
@@ -536,8 +588,12 @@ def printProgressBar (iteration, total, prefix = '', suffix = '', decimals = 1, 
     
 if __name__ == '__main__':
     loader = Loader()
-    # loader.load_specific_label("000008")
-    loader.load_data()
+    loader.load_specific_label("000008")
+    loader.show_train_data(2,0)
+    
+    # loader.load_data()
+    
+    
 
     
                  
